@@ -44,6 +44,13 @@ button{cursor:pointer;}
 .gantt-row{display:flex;gap:12px;padding:6px 0;border-bottom:1px solid #27272A;}
 .gantt-bar{height:24px;border-radius:4px;background:linear-gradient(135deg,#6366F1,#818CF8);}
 .notification-badge{background:#F43F5E;color:#fff;border-radius:99px;padding:2px 8px;font-size:10px;font-weight:700;}
+
+  /* ===== SOCIAL LOGIN BUTTONS ===== */
+.social-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:10px 16px;border-radius:9px;font-size:13px;font-weight:600;border:1px solid #27272A;background:transparent;color:#FAFAFA;transition:all .2s;cursor:pointer;}
+.social-btn:hover{background:#18181B;border-color:#3F3F46;}
+.social-btn.google:hover{background:#1a1a2e;border-color:#4285F4;}
+.social-btn.github:hover{background:#1a1a2e;border-color:#6e7681;}
+.social-btn svg{width:20px;height:20px;flex-shrink:0;}
 </style>
 </head>
 <body>
@@ -77,6 +84,11 @@ const sendEmail = async (to, subject, body) => {
     // Using EmailJS or Supabase Edge Function
     const response = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
       method: 'POST',
+      .social-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:10px 16px;border-radius:9px;font-size:13px;font-weight:600;border:1px solid #27272A;background:transparent;color:#FAFAFA;transition:all .2s;cursor:pointer;}
+.social-btn:hover{background:#18181B;border-color:#3F3F46;}
+.social-btn.google:hover{background:#1a1a2e;border-color:#4285F4;}
+.social-btn.github:hover{background:#1a1a2e;border-color:#6e7681;}
+.social-btn svg{width:20px;height:20px;flex-shrink:0;}
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({
         service_id: 'YOUR_SERVICE_ID',
@@ -262,40 +274,112 @@ function Login({onLogin,onSignup,onForgot,onSSO}){
         </div>
         <Hr m={14}/>
         <div style={{display:"flex",gap:8}}>
-          <Btn v="ghost" full onClick={()=>onSSO("google")}>G</Btn>
-          <Btn v="ghost" full onClick={()=>onSSO("github")}>GH</Btn>
+          <div style={{display:"flex",gap:8}}>
+  <Btn v="ghost" full onClick={()=>onSSO("google")}>G</Btn>
+  <Btn v="ghost" full onClick={()=>onSSO("github")}>GH</Btn>
+</div>
         </div>
-        <p style={{textAlign:"center",fontSize:13,color:C.txt2,marginTop:12}}>No account? <span onClick={onSignup} style={{color:C.indigoL,cursor:"pointer",fontWeight:600}}>Create free account</span></p>
+        <p style={{color:C.txt2,fontSize:13}}>Login to Aegis AI</p>
       </Card>
     </div>
   </div>;
 }
 
 // ===== FORGOT PASSWORD =====
-function ForgotPw({onBack}){
-  const[em,sE]=useState("");const[sent,sSent]=useState(false);const[err,sErr]=useState("");const[loading,sL]=useState(false);
-  const submit=async()=>{
-    if(!em){sErr("Email nakho");return;}
-    sL(true);sErr("");
-    const d=await go(`${SB}/auth/v1/recover`,{method:"POST",headers:H(),body:JSON.stringify({email:em})});
-    sL(false);
-    if(d&&d.error){sErr(d.message||"Try again");}else{sSent(true);}
-  };
-  return<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:C.bg,padding:20}}>
-    <div style={{width:"100%",maxWidth:360}}>
-      <div style={{textAlign:"center",marginBottom:22}}><Logo s={40}/><h2 style={{fontSize:20,fontWeight:800,marginTop:10,marginBottom:4}}>Reset password</h2><p style={{color:C.txt2,fontSize:13}}>We'll email you a reset link</p></div>
-      <Card sx={{padding:22}}>
-        {sent?<div style={{textAlign:"center",padding:6}}>
-          <div style={{fontSize:32,marginBottom:10}}>📧</div>
-          <div style={{fontSize:14,fontWeight:700,marginBottom:6}}>Check your inbox!</div>
-          <div style={{fontSize:13,color:C.txt2,marginBottom:18}}>Reset link sent to {em}</div>
-          <Btn v="ghost" full onClick={onBack}>Back to Login</Btn>
-        </div>:<div style={{display:"flex",flexDirection:"column",gap:12}}>
+function Login({onLogin,onSignup,onForgot,onSSO}){
+  const[em,sE]=useState("");const[pw,sP]=useState("");const[err,sErr]=useState("");const[loading,sL]=useState(false);
+  const go=async()=>{if(!em||!pw){sErr("Email ane password nakho");return;}sL(true);sErr("");const d=await api.in(em,pw);sL(false);if(d.access_token)onLogin(d);else sErr(d.msg||d.error_description||d.message||d.error||"Login failed");};
+  return<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:`radial-gradient(ellipse at 60% 0%, ${C.indigo}15 0%, ${C.bg} 60%)`,padding:20}}>
+    <div style={{width:"100%",maxWidth:400}}>
+      <div style={{textAlign:"center",marginBottom:24}}>
+        <div style={{display:"inline-block",marginBottom:10}}><Logo s={48}/></div>
+        <h2 style={{fontSize:24,fontWeight:800,marginBottom:4}}>Welcome back</h2>
+        <p style={{color:C.txt2,fontSize:13}}>Login to Aegis AI</p>
+      </div>
+      <Card sx={{padding:24}}>
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
           <Inp lbl="Email" ph="you@company.com" val={em} onChange={e=>sE(e.target.value)} type="email"/>
+          <Inp lbl="Password" ph="••••••••" val={pw} onChange={e=>sP(e.target.value)} type="password"/>
+          <div style={{textAlign:"right"}}><span onClick={onForgot} style={{fontSize:12,color:C.indigoL,cursor:"pointer",fontWeight:600}}>Forgot password?</span></div>
           {err&&<div style={{fontSize:12,color:C.red,background:`${C.red}12`,padding:"8px 12px",borderRadius:7}}>{err}</div>}
-          <Btn v="grad" full sz="lg" onClick={submit} dis={loading}>{loading?<Spin/>:"Send Reset Link"}</Btn>
-          <Btn v="ghost" full onClick={onBack}>Back to Login</Btn>
-        </div>}
+          <Btn v="grad" full sz="lg" onClick={go} dis={loading}>{loading?<Spin/>:"Login"}</Btn>
+        </div>
+        
+        {/* OR DIVIDER */}
+        <div style={{display:"flex",alignItems:"center",gap:10,margin:"14px 0"}}>
+          <div style={{flex:1,height:1,background:C.border}}/>
+          <span style={{fontSize:11,color:C.txt3}}>OR</span>
+          <div style={{flex:1,height:1,background:C.border}}/>
+        </div>
+
+        {/* ===== GOOGLE BUTTON WITH LOGO ===== */}
+        <button 
+          onClick={()=>onSSO("google")} 
+          className="social-btn google" 
+          style={{
+            display:'flex',
+            alignItems:'center',
+            justifyContent:'center',
+            gap:'10px',
+            width:'100%',
+            padding:'10px 16px',
+            borderRadius:'9px',
+            fontSize:'13px',
+            fontWeight:'600',
+            border:'1px solid #27272A',
+            background:'transparent',
+            color:'#FAFAFA',
+            transition:'all .2s',
+            cursor:'pointer',
+            marginBottom:'8px'
+          }}
+          onMouseEnter={(e)=>{e.currentTarget.style.background='#1a1a2e';e.currentTarget.style.borderColor='#4285F4';}}
+          onMouseLeave={(e)=>{e.currentTarget.style.background='transparent';e.currentTarget.style.borderColor='#27272A';}}
+        >
+          {/* Google SVG Logo */}
+          <svg width="20" height="20" viewBox="0 0 48 48">
+            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+            <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+          </svg>
+          <span>Continue with Google</span>
+        </button>
+
+        {/* ===== GITHUB BUTTON WITH LOGO ===== */}
+        <button 
+          onClick={()=>onSSO("github")} 
+          className="social-btn github" 
+          style={{
+            display:'flex',
+            alignItems:'center',
+            justifyContent:'center',
+            gap:'10px',
+            width:'100%',
+            padding:'10px 16px',
+            borderRadius:'9px',
+            fontSize:'13px',
+            fontWeight:'600',
+            border:'1px solid #27272A',
+            background:'transparent',
+            color:'#FAFAFA',
+            transition:'all .2s',
+            cursor:'pointer'
+          }}
+          onMouseEnter={(e)=>{e.currentTarget.style.background='#1a1a2e';e.currentTarget.style.borderColor='#6e7681';}}
+          onMouseLeave={(e)=>{e.currentTarget.style.background='transparent';e.currentTarget.style.borderColor='#27272A';}}
+        >
+          {/* GitHub SVG Logo */}
+          <svg width="20" height="20" viewBox="0 0 16 16" fill="#FAFAFA">
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+          </svg>
+          <span>Continue with GitHub</span>
+        </button>
+
+        <Hr m={14}/>
+        <p style={{textAlign:"center",fontSize:13,color:C.txt2}}>
+          No account? <span onClick={onSignup} style={{color:C.indigoL,cursor:"pointer",fontWeight:600}}>Create free account</span>
+        </p>
       </Card>
     </div>
   </div>;
