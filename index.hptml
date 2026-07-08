@@ -195,7 +195,15 @@ const c=await api.findCompanyByCode(tok,form.code.trim());
 if(!c){sL(false);sSt("");sErr("Invite Code khoto che — sachu code check karo");return;}
 await api.upsertProf(tok,uid,{full_name:form.name,role:form.role,company_id:c.id,company_name:c.name});
 }
-sL(false);sSt("");session.save(d2);onLogin(d2);
+sL(false);sSt("");
+const clean = {
+  access_token: d2.access_token,
+  refresh_token: d2.refresh_token,
+  user: { id: d2.user.id, email: d2.user.email },
+  expires_at: d2.expires_at
+};
+session.save(clean);
+onLogin(clean);
 }else{sL(false);sSt("");sErr("Account banyu! Hav login karo.");}
 }
 else{sL(false);sSt("");const em=d.msg||d.error_description||d.message||d.error||JSON.stringify(d);if(em.includes("already")||em.includes("registered"))sErr("Aa email thi account che — Login karo!");else sErr(em);}
