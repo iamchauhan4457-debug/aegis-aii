@@ -49,11 +49,7 @@ button{cursor:pointer;}
 .notification-badge{background:#F43F5E;color:#fff;border-radius:99px;padding:2px 8px;font-size:10px;font-weight:700;}
 
 /* ===== SOCIAL LOGIN BUTTONS ===== */
-.social-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:10px 16px;border-radius:9px;font-size:13px;font-weight:600;border:1px solid #27272A;background:transparent;color:#FAFAFA;transition:all .2s;cursor:pointer;}
-.social-btn:hover{background:#18181B;border-color:#3F3F46;}
-.social-btn.google:hover{background:#1a1a2e;border-color:#4285F4;}
-.social-btn.github:hover{background:#1a1a2e;border-color:#6e7681;}
-.social-btn svg{width:20px;height:20px;flex-shrink:0;}
+
 </head>
 <body>
 <div id="root"></div>
@@ -86,11 +82,6 @@ const sendEmail = async (to, subject, body) => {
     // Using EmailJS or Supabase Edge Function
     const response = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
       method: 'POST',
-      .social-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:10px 16px;border-radius:9px;font-size:13px;font-weight:600;border:1px solid #27272A;background:transparent;color:#FAFAFA;transition:all .2s;cursor:pointer;}
-.social-btn:hover{background:#18181B;border-color:#3F3F46;}
-.social-btn.google:hover{background:#1a1a2e;border-color:#4285F4;}
-.social-btn.github:hover{background:#1a1a2e;border-color:#6e7681;}
-.social-btn svg{width:20px;height:20px;flex-shrink:0;}
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({
         service_id: 'YOUR_SERVICE_ID',
