@@ -199,10 +199,10 @@ sL(false);sSt("");
 const clean = {
   access_token: d2.access_token,
   refresh_token: d2.refresh_token,
-  user: { id: d2.user.id, email: d2.user.email },
+  user: d2.user,
   expires_at: d2.expires_at
 };
-session.save(clean);
+localStorage.setItem("aegis_session", JSON.stringify(clean));
 onLogin(clean);
 }else{sL(false);sSt("");sErr("Account banyu! Hav login karo.");}
 }
