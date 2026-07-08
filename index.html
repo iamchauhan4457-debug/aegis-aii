@@ -530,8 +530,11 @@ sc==="price"&&React.createElement(Pricing,{onBack:()=>sSc("app")}),
 sc==="app"&&React.createElement("div",{style:{display:"flex",minHeight:"100vh"}},React.createElement(Sidebar,{user:auth?.user,prof:prof,pg:pg,onNav:nav,onOut:logout}),React.createElement("div",{style:{flex:1,display:"flex",flexDirection:"column",minWidth:0}},React.createElement("header",{style:{height:52,background:C.surf,borderBottom:"1px solid "+C.border,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 20px",fontSize:14,fontWeight:700,position:"sticky",top:0,zIndex:10}},React.createElement("span",null,TT[pg]||"Dashboard"),React.createElement("div",{style:{display:"flex",gap:8}},React.createElement(PWAInstall))),React.createElement("main",{style:{flex:1,padding:20,overflowY:"auto"}},page()))))
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+const rootNode = document.getElementById("root");
+if (rootNode) {
+  const root = ReactDOM.createRoot(rootNode);
+  root.render(React.createElement(App));
+}
 </script>
 </body>
 </html>
-
