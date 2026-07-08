@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Aegis AI</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#09090B;color:#FAFAFA;font-family:Inter,-apple-system,sans-serif;}
+input,button,select,textarea{font-family:inherit;}
+input::placeholder{color:#52525B;}
+input:focus,textarea:focus{outline:none;}
+button{cursor:pointer;}
+::-webkit-scrollbar{width:4px;}
+::-webkit-scrollbar-thumb{background:#27272A;border-radius:4px;}
+@keyframes spin{to{transform:rotate(360deg);}}
+@keyframes fu{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+.fu{animation:fu .3s ease both;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<div id="err-box" style="display:none;position:fixed;inset:0;background:#09090B;color:#F43F5E;font-family:monospace;font-size:12px;padding:20px;overflow:auto;z-index:9999;white-space:pre-wrap;"></div>
+<script>
+function showErr(msg){var box=document.getElementById('err-box');box.style.display='block';box.textContent='ERROR:\n'+msg;}
+window.addEventListener('error', function(e){ showErr((e.message||'')+'\n'+(e.filename||'')+':'+(e.lineno||'')); });
+window.addEventListener('unhandledrejection', function(e){ showErr('Unhandled Promise Rejection: '+(e.reason&&e.reason.message?e.reason.message:JSON.stringify(e.reason))); });
+</script>
+<script type="text/babel">
+const {useState,useEffect}=React;
+const SB="https://eaqktznqqbzjnwszpovw.supabase.co";
+const SK="sb_publishable_JrKWlO_6CGCPeFkRtMLU7w_IS8965uD";
+const H=(t)=>({"apikey":SK,"Authorization":`Bearer ${t||SK}`,"Content-Type":"application/json","Prefer":"return=representation"});
+const go=async(url,o={})=>{try{const c=new AbortController();const id=setTimeout(()=>c.abort(),15000);const r=await fetch(url,{...o,signal:c.signal});clearTimeout(id);return r.json();}catch(e){return{error:true,message:e.name==="AbortError"?"Slow internet — try again":e.message};}};
+const api={
+up:(e,p,n,r)=>go(`${SB}/auth/v1/signup`,{method:"POST",headers:H(),body:JSON.stringify({email:e,password:p,data:{full_name:n,role:r}})}),
+in:(e,p)=>go(`${SB}/auth/v1/token?grant_type=password`,{method:"POST",headers:H(),body:JSON.stringify({email:e,password:p})}),
+out:(t)=>go(`${SB}/auth/v1/logout`,{method:"POST",headers:H(t)}),
+prof:(t,u)=>go(`*${SB}/rest/v1/profiles?id=eq.$*{u}&select=*`**,\{headers:H(t)\}).then(d=\>Array.isArray(d)?d\[0\]:null),
+saveProf:(t,u,d)=\>go(**`${SB}/rest/v1/profiles?id=eq.${u}`**,\{method:"PATCH",headers:H(t),body:JSON.stringify(d)\}),
+upsertProf:(t,u,d)=\>go(**`${SB}/rest/v1/profiles?on_conflict=id`**,\{method:"POST",headers:\{...H(t),"Prefer":"resolution=merge-duplicates,return=representation"\},body:JSON.stringify(\{id:u,...d\})\}),
+projs:(t)=\>go(**`${SB}/rest/v1/projects?select=*&order=created_at.desc`,{headers:H(t)}),
+addProj:(t,u,d)=>go(`${SB}/rest/v1/projects`,{method:"POST",headers:H(t),body:JSON.stringify({...d,user_id:u})}),
+updProj:(t,i,d)=>go(`${SB}/rest/v1/projects?id=eq.${i}`,{method:"PATCH",headers:H(t),body:JSON.stringify(d)}),
+delProj:(t,i)=>go(`${SB}/rest/v1/projects?id=eq.${i}`,{method:"DELETE",headers:H(t)}),
+risks:(t)=>go(`${SB}/rest/v1/risks?select=*,projects(name)&order=created_at.desc`**,\{headers:H(t)\}),
+addRisk:(t,u,d)=\>go(**`${SB}/rest/v1/risks`**,\{method:"POST",headers:H(t),body:JSON.stringify(\{...d,user_id:u\})\}),
+delRisk:(t,i)=\>go(**`${SB}/rest/v1/risks?id=eq.${i}`**,\{method:"DELETE",headers:H(t)\}),
+createCompany:(t,ownerId,name)=\>go(**`${SB}/rest/v1/companies`**,\{method:"POST",headers:H(t),body:JSON.stringify(\{name,owner_id:ownerId\})\}),
+findCompanyByCode:(t,code)=\>go(**`${SB}/rest/v1/companies?invite_code=eq.${code}&select=*`,{headers:H(t)}).then(d=>Array.isArray(d)&&d[0]?d[0]:null),
+getCompany:(t,id)=>go(`*${SB}/rest/v1/companies?id=eq.$*{id}&select=*`**,\{headers:H(t)\}).then(d=\>Array.isArray(d)&&d\[0\]?d\[0\]:null),
+teamMembers:(t,companyId)=\>go(**`${SB}/rest/v1/profiles?company_id=eq.${companyId}&select=*`,{headers:H(t)}),
+};
+const gemKey={get:()=>localStorage.getItem("aegis_gemini_key")||"",set:(v)=>localStorage.setItem("aegis_gemini_key",v||"")};
+const session={
+save:(d)=>{try{const clean={access_token:d.access_token,refresh_token:d.refresh_token,user:{id:d.user?.id,email:d.user?.email},expires_at:d.expires_at};localStorage.setItem("aegis_session",JSON.stringify(clean));}catch(e){console.log(e);}},
+load:()=>{try{const v=localStorage.getItem("aegis_session");return v?JSON.parse(v):null;}catch(e){return null;}},
+clear:()=>localStorage.removeItem("aegis_session"),
+};
+const PLAN_LIMITS={trial:5,starter:15,pro:50,enterprise:999999};
+const usageCap={
+key:(uid)=>`aegis_ai_usage_${uid}_${new Date().toISOString().slice(0,10)}`,
+get:(uid)=>Number(localStorage.getItem(usageCap.key(uid))||0),
+inc:(uid)=>localStorage.setItem(usageCap.key(uid),String(usageCap.get(uid)+1)),
+limit:(plan)=>PLAN_LIMITS[plan]||PLAN_LIMITS.trial,
+};
+const askGemini=async(key,prompt)=>{
+const url=`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`;
+const r=await go(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})});
+if(r&&r.error&&typeof r.error==="object")return{error:true,message:r.error.message||JSON.stringify(r.error)};
+if(r&&r.error===true)return{error:true,message:r.message||"Network/fetch error"};
+const text=r?.candidates?.[0]?.content?.parts?.[0]?.text;
+if(!text)return{error:true,message:"Gemini thi javab na malyo. Raw response: "+JSON.stringify(r).slice(0,300)};
+return{error:false,text};
+};
+const C={bg:"#09090B",surf:"#111113",card:"#18181B",cardH:"#1C1C1F",border:"#27272A",borderL:"#3F3F46",indigo:"#6366F1",indigoL:"#818CF8",cyan:"#22D3EE",green:"#10B981",red:"#F43F5E",amber:"#F59E0B",txt:"#FAFAFA",txt2:"#A1A1AA",txt3:"#52525B",grad:"linear-gradient(135deg,#6366F1,#22D3EE)",gradS:"linear-gradient(135deg,rgba(99,102,241,.12),rgba(34,211,238,.06))"};
+const Spin=()=><div style={{width:18,height:18,border:`2px solid ${C.border}`,borderTopColor:C.indigo,borderRadius:"50%",animation:"spin .7s linear infinite",display:"inline-block"}}/>;
+const Logo=({s=36})=><svg width={s} height={s} viewBox="0 0 40 40"><defs><linearGradient id="lg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#6366F1"/><stop offset="100%" stopColor="#22D3EE"/></linearGradient></defs><polygon points="20,2 36,11 36,29 20,38 4,29 4,11" fill="url(#lg)" opacity=".12"/><polygon points="20,2 36,11 36,29 20,38 4,29 4,11" fill="none" stroke="url(#lg)" strokeWidth="1.5"/><path d="M20 11s6-2.5 6 6v3s-2.5 7-6 7-6-7-6-7v-3s0-8.5 6-6z" fill="url(#lg)" opacity=".9"/></svg>;
+const Av=({n="?",s=32})=>{const t=(n||"?").split(" ").map(x=>x[0]).join("").slice(0,2).toUpperCase();return<div style={{width:s,height:s,borderRadius:"50%",flexShrink:0,background:C.grad,display:"flex",alignItems:"center",justifyContent:"center",fontSize:s*.33,fontWeight:700,color:"#fff"}}>{t}</div>;};
+const Chip=({l,col="indigo"})=>{const m={indigo:{bg:`${C.indigo}18`,c:C.indigoL,b:`${C.indigo}40`},green:{bg:`${C.green}15`,c:C.green,b:`${C.green}35`},red:{bg:`${C.red}15`,c:C.red,b:`${C.red}35`},amber:{bg:`${C.amber}15`,c:C.amber,b:`${C.amber}35`},gray:{bg:"#fff1",c:C.txt2,b:C.border}};const s=m[col]||m.indigo;return<span style={{background:s.bg,color:s.c,border:`1px solid ${s.b}`,borderRadius:5,padding:"2px 8px",fontSize:11,fontWeight:600,display:"inline-block",whiteSpace:"nowrap"}}>{l}</span>;};
+const Bar=({v,col=C.indigo,h=5})=><div style={{background:C.border,borderRadius:99,height:h,overflow:"hidden"}}><div style={{width:`${Math.min(v||0,100)}%`,background:col,height:"100%",borderRadius:99}}/></div>;
+const Dot=({col})=><div style={{width:7,height:7,borderRadius:"50%",background:col,flexShrink:0}}/>;
+const Hr=({m=16})=><div style={{height:1,background:C.border,margin:`${m}px 0`}}/>;
+const Card=({children,sx={},onClick})=>{const[hv,sH]=useState(false);return<div onClick={onClick} onMouseEnter={()=>onClick&&sH(true)} onMouseLeave={()=>onClick&&sH(false)} style={{background:hv?C.cardH:C.card,border:`1px solid ${hv?C.borderL:C.border}`,borderRadius:14,padding:20,transition:"all .2s",cursor:onClick?"pointer":"default",...sx}}>{children}</div>;};
+const Btn=({children,v="pri",sz="md",onClick,dis,full,sx={}})=>{const[hv,sH]=useState(false);const vs={pri:{bg:hv?"#4F46E5":C.indigo,c:"#fff",b:"transparent"},grad:{bg:C.grad,c:"#fff",b:"transparent"},ghost:{bg:hv?"#fff1":"transparent",c:C.txt2,b:C.border},out:{bg:hv?`${C.indigo}12`:"transparent",c:C.indigoL,b:C.indigo},red:{bg:hv?"#E11D48":C.red,c:"#fff",b:"transparent"}};const s=vs[v]||vs.pri;const pad={sm:"6px 14px",md:"9px 18px",lg:"12px 24px"};const fs={sm:11,md:13,lg:14};return<button onClick={onClick} disabled={dis} onMouseEnter={()=>sH(true)} onMouseLeave={()=>sH(false)} style={{background:s.bg,color:s.c,border:`1px solid ${s.b}`,borderRadius:9,padding:pad[sz]||pad.md,fontSize:fs[sz]||fs.md,fontWeight:600,display:"inline-flex",alignItems:"center",gap:6,transition:"all .15s",width:full?"100%":"auto",justifyContent:"center",opacity:dis?.5:1,...sx}}>{children}</button>;};
+const Inp=({lbl,ph,val,onChange,type="text",rows})=>{const[foc,sF]=useState(false);const base={width:"100%",background:C.surf,color:C.txt,border:`1px solid ${foc?C.indigo:C.border}`,borderRadius:9,padding:"10px 14px",fontSize:13,transition:"border .15s",boxShadow:foc?`0 0 0 3px ${C.indigo}18`:"none"};return<div>{lbl&&<div style={{fontSize:12,fontWeight:600,color:C.txt2,marginBottom:6}}>{lbl}</div>}{rows?<textarea rows={rows} value={val} onChange={onChange} placeholder={ph} onFocus={()=>sF(true)} onBlur={()=>sF(false)} style={{...base,resize:"vertical"}}/>:<input type={type} value={val} onChange={onChange} placeholder={ph} onFocus={()=>sF(true)} onBlur={()=>sF(false)} style={base}/>}</div>;};
+const Sel=({lbl,val,onChange,opts})=><div>{lbl&&<div style={{fontSize:12,fontWeight:600,color:C.txt2,marginBottom:6}}>{lbl}</div>}<select value={val} onChange={onChange} style={{width:"100%",background:C.surf,color:C.txt,border:`1px solid ${C.border}`,borderRadius:9,padding:"10px 14px",fontSize:13}}>{opts.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}</select></div>;
+const Modal=({title,onClose,children})=><div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",zIndex:100,overflowY:"auto",padding:"20px 16px"}}><div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,width:"100%",maxWidth:460,padding:24,margin:"0 auto"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}><div style={{fontSize:15,fontWeight:700}}>{title}</div><div onClick={onClose} style={{cursor:"pointer",color:C.txt2,fontSize:22,lineHeight:1}}>✕</div></div>{children}</div></div>;
+const Toast=({msg,type="success"})=><div style={{position:"fixed",bottom:24,right:24,zIndex:200,background:type==="success"?C.green:C.red,color:"#fff",borderRadius:10,padding:"10px 18px",fontSize:13,fontWeight:600,boxShadow:"0 4px 20px rgba(0,0,0,.4)"}}>{type==="success"?"✅":"❌"} {msg}</div>;
+
+const NAVS={ceo:[{id:"dash",l:"Overview"},{id:"risks",l:"Risks"},{id:"team",l:"Team"},{id:"cfg",l:"Settings"}],mgr:[{id:"dash",l:"Dashboard"},{id:"proj",l:"Projects"},{id:"risks",l:"Risks"},{id:"team",l:"Team"},{id:"cfg",l:"Settings"}],dev:[{id:"dash",l:"My Work"},{id:"proj",l:"Projects"},{id:"team",l:"Team"},{id:"cfg",l:"Settings"}]};
+const RM={ceo:{l:"CEO",c:C.amber},mgr:{l:"Eng. Manager",c:C.cyan},dev:{l:"Developer",c:C.green}};
+
+function Sidebar({user,prof,pg,onNav,onOut}){
+const role=prof?.role||"mgr";const nav=NAVS[role]||NAVS.mgr;const rm=RM[role]||RM.mgr;
+return<aside style={{width:210,flexShrink:0,background:C.surf,borderRight:`1px solid ${C.border}`,display:"flex",flexDirection:"column",height:"100vh",position:"sticky",top:0}}>
+<div style={{padding:"16px 14px 12px",borderBottom:`1px solid ${C.border}`}}>
+<div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}><Logo s={30}/><div style={{fontSize:13,fontWeight:800}}>Aegis AI</div></div>
+<div style={{display:"flex",alignItems:"center",gap:6,padding:"6px 10px",background:`${rm.c}10`,border:`1px solid ${rm.c}30`,borderRadius:7}}><span style={{fontSize:10,fontWeight:700,color:rm.c}}>{rm.l}</span></div>
+</div>
+<nav style={{flex:1,padding:"10px 8px"}}>
+{nav.map(item=>{const act=pg===item.id;return<div key={item.id} onClick={()=>onNav(item.id)} style={{padding:"8px 10px",borderRadius:8,cursor:"pointer",marginBottom:2,background:act?`${C.indigo}15`:"transparent",color:act?C.indigoL:C.txt2,fontWeight:act?600:500,fontSize:13}}>{item.l}</div>;})}
+</nav>
+<div style={{padding:"10px 8px",borderTop:`1px solid ${C.border}`}}>
+<div onClick={()=>onNav("price")} style={{padding:"9px 12px",borderRadius:8,cursor:"pointer",background:C.gradS,border:`1px solid ${C.indigo}30`,marginBottom:8}}>
+<div style={{fontSize:10,fontWeight:700,color:C.indigoL,marginBottom:3}}>⏳ 24 days left in trial</div>
+<Bar v={20} col={C.indigo} h={3}/>
+<div style={{fontSize:9,color:C.txt3,marginTop:3}}>Upgrade →</div>
+</div>
+<div style={{display:"flex",alignItems:"center",gap:8,padding:"7px 10px"}}><Av n={prof?.full_name||user?.email} s={26}/><div style={{fontSize:11,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{prof?.full_name||"User"}</div></div>
+<div onClick={onOut} style={{padding:"6px 10px",borderRadius:7,cursor:"pointer",color:C.txt3,fontSize:11}}>← Sign out</div>
+</div>
+</aside>;
+}
+
+function Login({onLogin,onSignup,onForgot}){
+const[em,sE]=useState("");const[pw,sP]=useState("");const[err,sErr]=useState("");const[loading,sL]=useState(false);
+const go=async()=>{if(!em||!pw){sErr("Email ane password nakho");return;}sL(true);sErr("");const d=await api.in(em,pw);sL(false);if(d.access_token)onLogin(d);else sErr(d.msg||d.error_description||d.message||d.error||"Login failed");};
+return<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:`radial-gradient(ellipse at 60% 0%, ${C.indigo}15 0%, ${C.bg} 60%)`,padding:20}}>
+<div style={{width:"100%",maxWidth:380}}>
+<div style={{textAlign:"center",marginBottom:24}}><div style={{display:"inline-block",marginBottom:10}}><Logo s={44}/></div><h2 style={{fontSize:22,fontWeight:800,marginBottom:4}}>Welcome back</h2><p style={{color:C.txt2,fontSize:13}}>Sign in to Aegis AI</p></div>
+<Card sx={{padding:22}}>
+<div style={{display:"flex",flexDirection:"column",gap:12}}>
+<Inp lbl="Email" ph="you@company.com" val={em} onChange={e=>sE(e.target.value)} type="email"/>
+<Inp lbl="Password" ph="••••••••" val={pw} onChange={e=>sP(e.target.value)} type="password"/>
+<div style={{textAlign:"right"}}><span onClick={onForgot} style={{fontSize:12,color:C.indigoL,cursor:"pointer",fontWeight:600}}>Forgot password?</span></div>
+{err&&<div style={{fontSize:12,color:C.red,background:`${C.red}12`,padding:"8px 12px",borderRadius:7}}>{err}</div>}
+<Btn v="grad" full sz="lg" onClick={go} dis={loading}>{loading?<Spin/>:"Sign In"}</Btn>
+</div>
+<Hr m={14}/>
+<p style={{textAlign:"center",fontSize:13,color:C.txt2}}>No account? <span onClick={onSignup} style={{color:C.indigoL,cursor:"pointer",fontWeight:600}}>Create free account</span></p>
+</Card>
+</div>
+</div>;
+}
+
+function ForgotPw({onBack}){
+const[em,sE]=useState("");const[sent,sSent]=useState(false);const[err,sErr]=useState("");const[loading,sL]=useState(false);
+const submit=async()=>{
+if(!em){sErr("Email nakho");return;}
+sL(true);sErr("");
+const d=await go(`${SB}/auth/v1/recover`,{method:"POST",headers:H(),body:JSON.stringify({email:em})});
+sL(false);
+if(d&&d.error){sErr(d.message||"Try again");}else{sSent(true);}
+};
+return<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:C.bg,padding:20}}>
+<div style={{width:"100%",maxWidth:360}}>
+<div style={{textAlign:"center",marginBottom:22}}><Logo s={40}/><h2 style={{fontSize:20,fontWeight:800,marginTop:10,marginBottom:4}}>Reset password</h2><p style={{color:C.txt2,fontSize:13}}>We'll email you a reset link</p></div>
+<Card sx={{padding:22}}>
+{sent?<div style={{textAlign:"center",padding:6}}>
+<div style={{fontSize:32,marginBottom:10}}>📧</div>
+<div style={{fontSize:14,fontWeight:700,marginBottom:6}}>Check your inbox!</div>
+<div style={{fontSize:13,color:C.txt2,marginBottom:18}}>Reset link sent to {em}</div>
+<Btn v="ghost" full onClick={onBack}>Back to Login</Btn>
+</div>:<div style={{display:"flex",flexDirection:"column",gap:12}}>
+<Inp lbl="Email" ph="you@company.com" val={em} onChange={e=>sE(e.target.value)} type="email"/>
+{err&&<div style={{fontSize:12,color:C.red,background:`${C.red}12`,padding:"8px 12px",borderRadius:7}}>{err}</div>}
+<Btn v="grad" full sz="lg" onClick={submit} dis={loading}>{loading?<Spin/>:"Send Reset Link"}</Btn>
+<Btn v="ghost" full onClick={onBack}>Back to Login</Btn>
+</div>}
+</Card>
+</div>
+</div>;
+}
+
+function Signup({onLogin}){
+const[mode,sMode]=useState("new");// "new" or "join"
+const[form,sF]=useState({name:"",email:"",pw:"",role:"mgr",co:"",code:""});const[err,sErr]=useState("");const[loading,sL]=useState(false);const[status,sSt]=useState("");
+const f=k=>e=>sF({...form,[k]:e.target.value});
+const go=async()=>{
+if(!form.name||!form.email||!form.pw){sErr("Badha fields jaroori che");return;}
+if(form.pw.length<6){sErr("Password min 6 characters");return;}
+if(mode==="new"&&!form.co){sErr("Company Name nakho");return;}
+if(mode==="join"&&!form.code){sErr("Invite Code nakho");return;}
+sL(true);sErr("");sSt("Account banavi rahyu che...");
+try{
+const d=await api.up(form.email,form.pw,form.name,form.role);
+if(d.user||d.access_token){
+sSt("Login kari rahyu che...");
+const d2=await api.in(form.email,form.pw);
+if(d2.access_token){
+const tok=d2.access_token;const uid=d2.user.id;
+if(mode==="new"){
+sSt("Company setup kari rahyu che...");
+const comp=await api.createCompany(tok,uid,form.co);
+const c=Array.isArray(comp)?comp[0]:comp;
+if(!c||!c.id){sL(false);sSt("");sErr("Company banavva ma error aavyu — pharthi try karo");return;}
+await api.upsertProf(tok,uid,{full_name:form.name,role:form.role,company_id:c.id,company_name:c.name});
+}else{
+sSt("Company sodhi rahya che...");
+const c=await api.findCompanyByCode(tok,form.code.trim());
+if(!c){sL(false);sSt("");sErr("Invite Code khoto che — sachu code check karo");return;}
+await api.upsertProf(tok,uid,{full_name:form.name,role:form.role,company_id:c.id,company_name:c.name});
+}
+sL(false);sSt("");session.save(d2);onLogin(d2);
+}else{sL(false);sSt("");sErr("Account banyu! Hav login karo.");}
+}
+else{sL(false);sSt("");const em=d.msg||d.error_description||d.message||d.error||JSON.stringify(d);if(em.includes("already")||em.includes("registered"))sErr("Aa email thi account che — Login karo!");else sErr(em);}
+}catch(e){sL(false);sSt("");sErr("Network issue — internet check karo");}
+};
+return<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:`radial-gradient(ellipse at 40% 0%, ${C.cyan}10 0%, ${C.bg} 60%)`,padding:20}}>
+<div style={{width:"100%",maxWidth:400}}>
+<div style={{textAlign:"center",marginBottom:20}}><div style={{display:"inline-block",marginBottom:10}}><Logo s={40}/></div><h2 style={{fontSize:20,fontWeight:800,marginBottom:4}}>Create your account</h2><p style={{color:C.txt2,fontSize:13}}>Free — no credit card needed</p></div>
+<Card sx={{padding:22}}>
+<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:16}}>
+<div onClick={()=>sMode("new")} style={{padding:"9px",borderRadius:9,textAlign:"center",cursor:"pointer",border:`1.5px solid ${mode==="new"?C.indigo:C.border}`,background:mode==="new"?`${C.indigo}12`:"transparent",fontSize:12,fontWeight:600,color:mode==="new"?C.indigoL:C.txt2}}>🏢 New Company</div>
+<div onClick={()=>sMode("join")} style={{padding:"9px",borderRadius:9,textAlign:"center",cursor:"pointer",border:`1.5px solid ${mode==="join"?C.indigo:C.border}`,background:mode==="join"?`${C.indigo}12`:"transparent",fontSize:12,fontWeight:600,color:mode==="join"?C.indigoL:C.txt2}}>🔗 Join Company</div>
+</div>
+<div style={{display:"flex",flexDirection:"column",gap:12}}>
+<Inp lbl="Full Name" ph="Raj Patel" val={form.name} onChange={f("name")}/>
+<Inp lbl="Work Email" ph="raj@company.com" val={form.email} onChange={f("email")} type="email"/>
+<Inp lbl="Password" ph="Min 6 characters" val={form.pw} onChange={f("pw")} type="password"/>
+{mode==="new"
+?<Inp lbl="Company Name" ph="Acme Corp" val={form.co} onChange={f("co")}/>
+:<Inp lbl="Invite Code" ph="e.g. a1b2c3d4" val={form.code} onChange={f("code")}/>}
+<Sel lbl="Your Role" val={form.role} onChange={f("role")} opts={mode==="new"?[{v:"ceo",l:"CEO / Founder"}]:[{v:"mgr",l:"Engineering Manager"},{v:"dev",l:"Developer"}]}/>
+{mode==="join"&&<div style={{fontSize:11,color:C.txt3}}>Invite code taro Manager/CEO pase thi malshe (Settings ma dikhay che)</div>}
+{err&&<div style={{fontSize:12,color:C.red,background:`${C.red}12`,padding:"8px 12px",borderRadius:7}}>{err}</div>}
+{status&&<div style={{fontSize:12,color:C.cyan,background:`${C.cyan}10`,padding:"8px 12px",borderRadius:7,display:"flex",alignItems:"center",gap:8}}><Spin/> {status}</div>}
+<Btn v="grad" full sz="lg" onClick={go} dis={loading}>{loading?"Please wait...":"Create Account"}</Btn>
+</div>
+<Hr m={14}/>
+<p style={{textAlign:"center",fontSize:13,color:C.txt2}}>Have account? <span onClick={onLogin} style={{color:C.indigoL,cursor:"pointer",fontWeight:600}}>Sign in</span></p>
+</Card>
+</div>
+</div>;
+}
+
+function Pricing({onBack}){
+return<div style={{minHeight:"100vh",background:C.bg,padding:"40px 20px"}}>
+<div style={{maxWidth:800,margin:"0 auto"}}>
+<div onClick={onBack} style={{color:C.txt2,cursor:"pointer",marginBottom:28,fontSize:13}}>← Back</div>
+<div style={{textAlign:"center",marginBottom:32}}><h2 style={{fontSize:28,fontWeight:900,background:C.grad,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",marginBottom:6}}>Choose your plan</h2><p style={{color:C.txt2}}>30-day free trial. Upgrade required after.</p></div>
+<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:14}}>
+{[{n:"Starter",p:"₹2,999",per:"/mo",feats:["5 projects","6 members","Weekly AI reports","Email support"],v:"ghost"},{n:"Pro",p:"₹7,999",per:"/mo",hot:true,feats:["20 projects","Unlimited members","Real-time AI","GitHub + Jira","Priority support"],v:"grad"},{n:"Enterprise",p:"Custom",per:"",feats:["Unlimited everything","SSO/SAML","Dedicated manager","SLA"],v:"out"}].map(p=>(
+<Card key={p.n} sx={{border:`1.5px solid ${p.hot?C.indigo:C.border}`,position:"relative",boxShadow:p.hot?`0 0 30px ${C.indigo}22`:"none"}}>
+{p.hot&&<div style={{position:"absolute",top:-12,left:"50%",transform:"translateX(-50%)",background:C.grad,borderRadius:99,padding:"3px 12px",fontSize:10,fontWeight:700,color:"#fff",whiteSpace:"nowrap"}}>Most Popular</div>}
+<div style={{fontSize:13,fontWeight:600,color:C.txt2,marginBottom:3}}>{p.n}</div>
+<div style={{fontSize:24,fontWeight:900,marginBottom:3}}>{p.p}<span style={{fontSize:12,color:C.txt3}}>{p.per}</span></div>
+<Hr m={12}/>
+<div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:14}}>{p.feats.map(f=><div key={f} style={{fontSize:12,color:C.txt2}}>✓ {f}</div>)}</div>
+<Btn v={p.v} full>{p.hot?"Upgrade to Pro →":p.n==="Enterprise"?"Contact Sales →":"Start Free Trial"}</Btn>
+</Card>
+))}
+</div>
+</div>
+</div>;
+}
+
+function Dashboard({user,prof,token,onNav}){
+const[projs,sP]=useState([]);const[risks,sR]=useState([]);const[loading,sL]=useState(true);
+useEffect(()=>{Promise.all([api.projs(token),api.risks(token)]).then(([p,r])=>{sP(Array.isArray(p)?p:[]);sR(Array.isArray(r)?r:[]);sL(false);});},[]);
+const crit=risks.filter(r=>r.severity==="critical").length;const heal=projs.filter(p=>p.status==="healthy").length;
+if(loading)return<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:300,gap:12}}><Spin/><span style={{color:C.txt2}}>Loading...</span></div>;
+return<div className="fu">
+<div style={{marginBottom:20}}><h2 style={{fontSize:20,fontWeight:800,marginBottom:3}}>Good morning, {(prof?.full_name||"there").split(" ")[0]} 👋</h2><p style={{color:C.txt2,fontSize:13}}>{prof?.company_name||"Your workspace"} · {new Date().toDateString()}</p></div>
+<div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:13,marginBottom:18}}>
+{[{l:"Total Projects",v:projs.length,c:C.indigo},{l:"Healthy",v:heal,c:C.green},{l:"Critical Risks",v:crit,c:C.red}].map(k=><Card key={k.l}><div style={{fontSize:28,fontWeight:900,color:k.c,marginBottom:4}}>{k.v}</div><div style={{fontSize:12,color:C.txt2}}>{k.l}</div></Card>)}
+</div>
+{projs.length===0?<Card sx={{textAlign:"center",padding:40}}><div style={{fontSize:36,marginBottom:12}}>🚀</div><div style={{fontSize:15,fontWeight:700,marginBottom:6}}>Pehlo project add karo!</div><div style={{fontSize:13,color:C.txt2,marginBottom:18}}>Projects add karo ane tracking shuru karo</div><Btn v="grad" onClick={()=>onNav("proj")}>Add Project</Btn></Card>
+:<div>
+<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}><div style={{fontSize:13,fontWeight:700}}>Recent Projects</div><Btn v="ghost" sz="sm" onClick={()=>onNav("proj")}>View All →</Btn></div>
+<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:12}}>
+{projs.slice(0,4).map(p=>{const sc=p.status==="healthy"?C.green:p.status==="at-risk"?C.red:C.amber;return<Card key={p.id} onClick={()=>onNav("proj")}><div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}><div style={{fontSize:13,fontWeight:600}}>{p.name}</div><Dot col={sc}/></div><Chip l={p.team||"Engineering"} col="gray"/><div style={{marginTop:10}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontSize:11,color:C.txt3}}>Health</span><span style={{fontSize:11,fontWeight:700,color:sc}}>{p.health_score}%</span></div><Bar v={p.health_score} col={sc}/></div></Card>;})}
+</div>
+</div>}
+<Card sx={{marginTop:14,background:C.gradS,border:`1px solid ${C.indigo}30`}}>
+<div style={{fontSize:13,fontWeight:700,marginBottom:10}}>Quick Actions</div>
+<div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+{prof?.role==="mgr"&&<Btn v="grad" onClick={()=>onNav("proj")}>+ Add Project</Btn>}
+{prof?.role==="mgr"&&<Btn v="out" onClick={()=>onNav("risks")}>+ Add Risk</Btn>}
+{prof?.role!=="mgr"&&<Btn v="out" onClick={()=>onNav("proj")}>👁 View Projects</Btn>}
+<Btn v="ghost" onClick={()=>onNav("team")}>👥 Team</Btn>
+<Btn v="ghost" onClick={()=>onNav("cfg")}>⚙ Settings</Btn>
+</div>
+</Card>
+<AIInsights projs={projs} risks={risks} onNav={onNav} uid={user?.id} plan={prof?.plan}/>
+</div>;
+}
+
+function AIInsights({projs,risks,onNav,uid,plan}){
+const[text,sText]=useState("");const[loading,sL]=useState(false);const[err,sErr]=useState("");
+const activePlan=plan||"trial";const limit=usageCap.limit(activePlan);const used=uid?usageCap.get(uid):0;const remaining=Math.max(0,limit-used);
+const gen=async()=>{
+const key=gemKey.get();
+if(!key){sErr("Pehla Settings ma jaine Gemini API key nakho.");return;}
+if(uid&&used>=limit){sErr(`Aajni ${limit} AI generations ni limit puri thai gayi (${activePlan} plan). Kal pharthi try karo, ya plan upgrade karo.`);return;}
+sL(true);sErr("");sText("");
+try{
+const summary=`Projects:\n${projs.map(p=>`- ${p.name} (team:${p.team||"N/A"}, health: ${p.health_score}%, status:${p.status}, sprint: ${p.sprint||"N/A"})`).join("\n")||"No projects yet"}\n\nRisks:\n${risks.map(r=>`- [${r.severity}] ${r.description} (impact: ${r.financial_impact||"N/A"}, owner: ${r.owner_name||"N/A"})`).join("\n")||"No risks logged"}`;       const prompt=`Tame ek engineering delivery advisor cho. Niche apel project ane risk data joine, 4-5 sankshipt (short) actionable insights aapo — jema priority order ma su focus karvu joie e kaho. Gujarati-English mix (Gujlish) ma, mobile screen mate short bullet points banavo, dares no use na karo:\n\n${summary}`;       const res=await askGemini(key,prompt);       sL(false);       if(res.error)sErr(res.message||"Unknown error aavi");else if(!res.text)sErr("Khali javab malyo Gemini thi");else{sText(res.text);if(uid)usageCap.inc(uid);}     }catch(ex){       sL(false);       sErr("Exception: "+(ex&&ex.message?ex.message:String(ex)));     }   };   return<Card sx={{marginTop:14,border:`1px solid $`{C.cyan}30`}}>
+
+<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+
+<div style={{fontSize:13,fontWeight:700}}>✨ AI Insights</div>
+
+<Btn v="out" sz="sm" onClick={gen} dis={loading||remaining<=0}>{loading?<Spin/>:"Generate"}</Btn>
+
+</div>
+
+<div style={{fontSize:10,color:C.txt3,marginBottom:10}}>{remaining}/{limit} generations baki aaje ({activePlan} plan)</div>
+
+{!text&&!loading&&!err&&<div style={{fontSize:12,color:C.txt2}}>Tamara projects ane risks joine AI-based insights maate "Generate" dabao.</div>}
+
+{loading&&<div style={{display:"flex",alignItems:"center",gap:10,fontSize:12,color:C.txt2}}><Spin/> Analyzing...</div>}
+
+{err&&<div style={{fontSize:12,color:C.red,background:${C.red}12`,padding:"10px 12px",borderRadius:8,display:"flex",flexDirection:"column",gap:8}}>
+<span>{err}</span>
+{err.includes("Settings")&&<Btn v="grad" sz="sm" onClick={()=>onNav("cfg")}>Settings ma jao</Btn>}
+{err.includes("limit")&&<Btn v="grad" sz="sm" onClick={()=>onNav("price")}>Plan Upgrade karo</Btn>}
+</div>}
+{text&&<div style={{fontSize:13,color:C.txt,whiteSpace:"pre-wrap",lineHeight:1.6}}>{text}</div>}
+</Card>;
+}
+
+function Projects({token,uid,role,companyId}){
+const canEdit=role==="mgr";
+const[projs,sP]=useState([]);const[loading,sL]=useState(true);const[showAdd,sSA]=useState(false);const[toast,sT]=useState(null);
+const[form,sF]=useState({name:"",team:"",sprint:"",health_score:75,risk_score:25,status:"healthy",deadline:""});const[saving,sSv]=useState(false);
+const[editId,sEditId]=useState(null);const[detail,sDetail]=useState(null);const[perr,sPerr]=useState("");
+const load=async()=>{sL(true);const d=await api.projs(token);sP(Array.isArray(d)?d:[]);sL(false);};
+useEffect(()=>{load();},[]);
+const showT=(msg,type="success")=>{sT({msg,type});setTimeout(()=>sT(null),3000);};
+const blankForm={name:"",team:"",sprint:"",health_score:75,risk_score:25,status:"healthy",deadline:""};
+const openAdd=()=>{sEditId(null);sF(blankForm);sPerr("");sSA(true);};
+const openEdit=(p)=>{sEditId(p.id);sF({name:p.name||"",team:p.team||"",sprint:p.sprint||"",health_score:p.health_score||75,risk_score:p.risk_score||25,status:p.status||"healthy",deadline:p.deadline||""});sPerr("");sDetail(null);sSA(true);};
+const save=async()=>{
+if(!form.name){sPerr("Project Name jaroori che!");return;}
+sPerr("");sSv(true);
+const payload={...form,health_score:Number(form.health_score),risk_score:Number(form.risk_score),company_id:companyId};
+const r=editId?await api.updProj(token,editId,payload):await api.addProj(token,uid,payload);
+sSv(false);
+if(r&&r.error){sPerr(r.message||"Error thai — pharthi try karo");return;}
+sSA(false);sF(blankForm);sEditId(null);
+showT(editId?"Project update thayo! ✅":"Project add thayo! ✅");load();
+};
+const del=async(id)=>{if(!confirm("Delete karvu?"))return;await api.delProj(token,id);sDetail(null);showT("Deleted","error");load();};
+const f=k=>e=>sF({...form,[k]:e.target.value});
+return<div className="fu">
+{toast&&<Toast msg={toast.msg} type={toast.type}/>}
+<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div style={{fontSize:13,color:C.txt2}}>{projs.length} projects</div>{canEdit&&<Btn v="grad" onClick={openAdd}>+ New Project</Btn>}</div>
+{loading?<div style={{display:"flex",justifyContent:"center",padding:48}}><Spin/></div>
+:projs.length===0?<Card sx={{textAlign:"center",padding:40}}><div style={{fontSize:32,marginBottom:10}}>📋</div><div style={{fontSize:14,fontWeight:700,marginBottom:6}}>Koi project nathi</div>{canEdit&&<Btn v="grad" onClick={openAdd}>+ Add Project</Btn>}</Card>
+:<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:12}}>
+{projs.map(p=>{const sc=p.status==="healthy"?C.green:p.status==="at-risk"?C.red:C.amber;return<Card key={p.id} onClick={()=>sDetail(p)}><div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}><div style={{flex:1}}><div style={{fontSize:13,fontWeight:700,marginBottom:4}}>{p.name}</div><Chip l={p.team||"Engineering"} col="gray"/></div><Dot col={sc}/></div><div style={{marginBottom:8}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontSize:11,color:C.txt3}}>Health</span><span style={{fontSize:11,fontWeight:700,color:sc}}>{p.health_score}%</span></div><Bar v={p.health_score} col={sc}/></div><div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:C.txt3}}><span>{p.sprint||"No sprint"}</span><Chip l={p.status==="healthy"?"Healthy":p.status==="at-risk"?"At Risk":"Warning"} col={p.status==="healthy"?"green":p.status==="at-risk"?"red":"amber"}/></div></Card>;})}
+</div>}
+{showAdd&&<Modal title={editId?"Edit Project":"New Project"} onClose={()=>{sSA(false);sEditId(null);}}>
+<div style={{display:"flex",flexDirection:"column",gap:12}}>
+<Inp lbl="Project Name *" ph="Payment Gateway v3" val={form.name} onChange={f("name")}/>
+<Inp lbl="Team" ph="Backend, Mobile..." val={form.team} onChange={f("team")}/>
+<Inp lbl="Sprint" ph="Sprint 8" val={form.sprint} onChange={f("sprint")}/>
+<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><Inp lbl="Health (0-100)" ph="75" val={form.health_score} onChange={f("health_score")} type="number"/><Inp lbl="Risk (0-100)" ph="25" val={form.risk_score} onChange={f("risk_score")} type="number"/></div>
+<Sel lbl="Status" val={form.status} onChange={f("status")} opts={[{v:"healthy",l:"✅ Healthy"},{v:"warning",l:"⚠️ Warning"},{v:"at-risk",l:"🔴 At Risk"}]}/>
+<Inp lbl="Deadline" val={form.deadline} onChange={f("deadline")} type="date"/>
+{perr&&<div style={{fontSize:12,color:C.red,background:`${C.red}12`,padding:"8px 12px",borderRadius:7}}>{perr}</div>}
+<div style={{display:"flex",gap:8,marginTop:4}}><Btn v="ghost" full onClick={()=>{sSA(false);sEditId(null);}}>Cancel</Btn><Btn v="grad" full onClick={save} dis={saving}>{saving?<Spin/>:editId?"Save Changes":"Add Project"}</Btn></div>
+</div>
+</Modal>}
+{detail&&<Modal title={detail.name} onClose={()=>sDetail(null)}>
+<div style={{display:"flex",flexDirection:"column",gap:12}}>
+<div style={{display:"flex",gap:8}}><Chip l={detail.team||"Engineering"} col="gray"/><Chip l={detail.status==="healthy"?"Healthy":detail.status==="at-risk"?"At Risk":"Warning"} col={detail.status==="healthy"?"green":detail.status==="at-risk"?"red":"amber"}/></div>
+<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+<div><div style={{fontSize:11,color:C.txt3,marginBottom:4}}>Health Score</div><div style={{fontSize:20,fontWeight:800,color:C.green}}>{detail.health_score}%</div></div>
+<div><div style={{fontSize:11,color:C.txt3,marginBottom:4}}>Risk Score</div><div style={{fontSize:20,fontWeight:800,color:C.red}}>{detail.risk_score}%</div></div>
+</div>
+<div style={{fontSize:12,color:C.txt2}}>Sprint: {detail.sprint||"Not set"}</div>
+<div style={{fontSize:12,color:C.txt2}}>Deadline: {detail.deadline||"Not set"}</div>
+<Hr m={10}/>
+<div style={{display:"flex",gap:8}}>
+<Btn v="ghost" full onClick={()=>sDetail(null)}>Close</Btn>
+{canEdit&&<Btn v="out" full onClick={()=>openEdit(detail)}>✎ Edit</Btn>}
+{canEdit&&<Btn v="red" full onClick={()=>del(detail.id)}>🗑 Delete</Btn>}
+</div>
+</div>
+</Modal>}
+</div>;
+}
+
+function Risks({token,uid,role,companyId}){
+const canEdit=role==="mgr";
+const[risks,sR]=useState([]);const[projs,sP]=useState([]);const[loading,sL]=useState(true);
+const[showAdd,sSA]=useState(false);const[toast,sT]=useState(null);
+const[form,sF]=useState({description:"",severity:"medium",financial_impact:"",owner_name:"",project_id:""});const[saving,sSv]=useState(false);
+const load=async()=>{sL(true);const[r,p]=await Promise.all([api.risks(token),api.projs(token)]);sR(Array.isArray(r)?r:[]);sP(Array.isArray(p)?p:[]);sL(false);};
+useEffect(()=>{load();},[]);
+const showT=(msg,type="success")=>{sT({msg,type});setTimeout(()=>sT(null),3000);};
+const add=async()=>{if(!form.description)return;sSv(true);await api.addRisk(token,uid,{...form,company_id:companyId});sSv(false);sSA(false);sF({description:"",severity:"medium",financial_impact:"",owner_name:"",project_id:""});showT("Risk add thayo! ✅");load();};
+const del=async(id)=>{if(!confirm("Delete?"))return;await api.delRisk(token,id);showT("Deleted","error");load();};
+const f=k=>e=>sF({...form,[k]:e.target.value});
+return<div className="fu">
+{toast&&<Toast msg={toast.msg} type={toast.type}/>}
+<div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:16}}>
+{[{l:"Critical",v:risks.filter(r=>r.severity==="critical").length,c:C.red},{l:"High",v:risks.filter(r=>r.severity==="high").length,c:C.amber},{l:"Total",v:risks.length,c:C.indigo}].map(r=><Card key={r.l} sx={{borderColor:`${r.c}25`}}><div style={{fontSize:26,fontWeight:900,color:r.c}}>{r.v}</div><div style={{fontSize:12,color:C.txt2}}>{r.l}</div></Card>)}
+</div>
+<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}><div style={{fontSize:13,fontWeight:700}}>All Risks</div>{canEdit&&<Btn v="grad" onClick={()=>sSA(true)}>+ Add Risk</Btn>}</div>
+{loading?<div style={{display:"flex",justifyContent:"center",padding:40}}><Spin/></div>
+:risks.length===0?<Card sx={{textAlign:"center",padding:36}}><div style={{fontSize:28,marginBottom:8}}>✅</div><div style={{fontSize:13,fontWeight:700}}>Koi risk nathi!</div></Card>
+:<Card sx={{padding:0,overflow:"hidden"}}><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr style={{background:C.surf}}>{["Description","Severity","Impact","Owner"].map(h=><th key={h} style={{padding:"8px 14px",fontSize:10,fontWeight:700,color:C.txt3,textAlign:"left",textTransform:"uppercase"}}>{h}</th>)}{canEdit&&<th></th>}</tr></thead><tbody>{risks.map(r=><tr key={r.id} style={{borderTop:`1px solid ${C.border}`}} onMouseEnter={e=>e.currentTarget.style.background=C.cardH} onMouseLeave={e=>e.currentTarget.style.background="transparent"}><td style={{padding:"10px 14px",fontSize:12}}>{r.description}</td><td style={{padding:"10px 14px"}}><Chip l={r.severity} col={r.severity==="critical"?"red":r.severity==="high"?"amber":"indigo"}/></td><td style={{padding:"10px 14px",fontSize:12,color:C.red,fontWeight:600}}>{r.financial_impact||"-"}</td><td style={{padding:"10px 14px",fontSize:12,color:C.txt2}}>{r.owner_name||"-"}</td>{canEdit&&<td style={{padding:"10px 14px"}}><span onClick={()=>del(r.id)} style={{cursor:"pointer",fontSize:15}}>🗑</span></td>}</tr>)}</tbody></table></Card>}
+{showAdd&&<Modal title="Add Risk" onClose={()=>sSA(false)}>
+<div style={{display:"flex",flexDirection:"column",gap:12}}>
+<Inp lbl="Description *" ph="Sprint velocity drop..." val={form.description} onChange={f("description")} rows={2}/>
+<Sel lbl="Severity" val={form.severity} onChange={f("severity")} opts={[{v:"critical",l:"🔴 Critical"},{v:"high",l:"🟠 High"},{v:"medium",l:"🟡 Medium"},{v:"low",l:"🟢 Low"}]}/>
+{projs.length>0&&<Sel lbl="Project" val={form.project_id} onChange={f("project_id")} opts={[{v:"",l:"General"},...projs.map(p=>({v:p.id,l:p.name}))]}/>}
+<Inp lbl="Financial Impact" ph="₹5L" val={form.financial_impact} onChange={f("financial_impact")}/>
+<Inp lbl="Owner" ph="Priya Sharma" val={form.owner_name} onChange={f("owner_name")}/>
+<div style={{display:"flex",gap:8,marginTop:4}}><Btn v="ghost" full onClick={()=>sSA(false)}>Cancel</Btn><Btn v="grad" full onClick={add} dis={saving}>{saving?<Spin/>:"Add Risk"}</Btn></div>
+</div>
+</Modal>}
+</div>;
+}
+
+</table>
+
+function TeamPage({token,companyId}){
+const[members,sM]=useState([]);const[loading,sL]=useState(true);const[company,sCo]=useState(null);
+useEffect(()=>{
+if(!companyId){sL(false);return;}
+Promise.all([api.teamMembers(token,companyId),api.getCompany(token,companyId)]).then(([m,c])=>{
+sM(Array.isArray(m)?m:[]);sCo(c);sL(false);
+});
+},[]);
+const roleLbl={ceo:"CEO",mgr:"Manager",dev:"Developer"};
+const roleColor={ceo:"amber",mgr:"indigo",dev:"green"};
+if(loading)return<div style={{display:"flex",justifyContent:"center",padding:48}}><Spin/></div>;
+return<div className="fu">
+<Card sx={{marginBottom:16,background:C.gradS,border:`1px solid ${C.indigo}30`}}>
+<div style={{fontSize:13,fontWeight:700,marginBottom:8}}>🔗 Invite Code</div>
+<div style={{display:"flex",alignItems:"center",gap:10}}>
+<div style={{fontFamily:"monospace",fontSize:18,fontWeight:800,color:C.indigoL,background:C.surf,padding:"8px 16px",borderRadius:8,letterSpacing:"1px"}}>{company?.invite_code||"—"}</div>
+<Btn v="ghost" sz="sm" onClick={()=>{navigator.clipboard.writeText(company?.invite_code||"");}}>📋 Copy</Btn>
+</div>
+<div style={{fontSize:11,color:C.txt3,marginTop:8}}>Aa code team members ne aapo — te "Join Company" thi signup kari shakshe</div>
+</Card>
+<div style={{fontSize:13,fontWeight:700,marginBottom:12}}>{members.length} Team Members</div>
+<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:12}}>
+{members.map(m=>(
+<Card key={m.id}>
+<div style={{display:"flex",gap:10,alignItems:"center",marginBottom:10}}>
+<Av n={m.full_name} s={36}/>
+<div style={{flex:1,minWidth:0}}>
+<div style={{fontSize:13,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.full_name||"User"}</div>
+</div>
+</div>
+<Chip l={roleLbl[m.role]||"Member"} col={roleColor[m.role]||"gray"}/>
+</Card>
+))}
+{members.length===0&&<Card sx={{textAlign:"center",padding:24,gridColumn:"1/-1"}}><div style={{fontSize:12,color:C.txt2}}>Koi team member nathi haju</div></Card>}
+</div>
+</div>;
+}
+
+function Settings({token,uid,prof,onUpdate}){
+const[form,sF]=useState({full_name:prof?.full_name||"",company_name:prof?.company_name||""});
+const[saving,sSv]=useState(false);const[toast,sT]=useState(null);
+const[gk,sGk]=useState(gemKey.get());
+const roleLbl={ceo:"CEO / Founder",mgr:"Engineering Manager",dev:"Developer"}[prof?.role]||"Engineering Manager";
+const f=k=>e=>sF({...form,[k]:e.target.value});
+const save=async()=>{sSv(true);await api.saveProf(token,uid,form);gemKey.set(gk);sSv(false);onUpdate(form);sT({msg:"Saved! ✅",type:"success"});setTimeout(()=>sT(null),3000);};
+return<div className="fu" style={{maxWidth:460}}>
+{toast&&<Toast msg={toast.msg} type={toast.type}/>}
+<Card>
+<div style={{display:"flex",gap:12,alignItems:"center",marginBottom:16}}><Av n={form.full_name} s={50}/><div><div style={{fontSize:14,fontWeight:700}}>{form.full_name||"Your Name"}</div><div style={{fontSize:12,color:C.txt3}}>Aegis AI</div></div></div>
+<Hr m={14}/>
+<div style={{display:"flex",flexDirection:"column",gap:12}}>
+<Inp lbl="Full Name" ph="Raj Patel" val={form.full_name} onChange={f("full_name")}/>
+<Inp lbl="Company Name" ph="Acme Corp" val={form.company_name} onChange={f("company_name")}/>
+<div>
+<div style={{fontSize:12,fontWeight:600,color:C.txt2,marginBottom:6}}>Role</div>
+<div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 14px",background:C.surf,border:`1px solid ${C.border}`,borderRadius:9}}>
+<Chip l={roleLbl}/>
+<span style={{fontSize:11,color:C.txt3}}>🔒 Signup time e fix thayel, badli na shakay</span>
+</div>
+</div>
+<Btn v="grad" onClick={save} dis={saving}>{saving?<Spin/>:"✓ Save Changes"}</Btn>
+</div>
+</Card>
+<Card sx={{marginTop:14}}>
+<div style={{fontSize:14,fontWeight:700,marginBottom:4}}>✨ AI Insights (Gemini)</div>
+<div style={{fontSize:12,color:C.txt2,marginBottom:14}}>Dashboard par AI-based project analysis mate free Gemini API key nakho. Key <span style={{color:C.indigoL}}>aistudio.google.com/apikey</span> parthi malshe — badhu tamara browser ma j save thay che.</div>
+<div style={{display:"flex",flexDirection:"column",gap:12}}>
+<Inp lbl="Gemini API Key" ph="AIzaSy..." val={gk} onChange={e=>sGk(e.target.value)} type="password"/>
+<Btn v="out" onClick={save} dis={saving}>{saving?<Spin/>:"Save API Key"}</Btn>
+</div>
+</Card>
+
+</div>;
+}
+
+const TT={dash:"Dashboard",proj:"Projects",risks:"Risk Center",team:"Team",cfg:"Settings"};
+
+function ResetPw({token,onDone}){
+const[pw,sPw]=useState("");const[pw2,sPw2]=useState("");const[err,sErr]=useState("");const[loading,sL]=useState(false);const[done,sDone]=useState(false);
+const submit=async()=>{
+if(!pw||pw.length<6){sErr("Password min 6 characters joie");return;}
+if(pw!==pw2){sErr("Password match nathi thato");return;}
+sL(true);sErr("");
+const d=await go(`${SB}/auth/v1/user`,{method:"PUT",headers:{...H(token)},body:JSON.stringify({password:pw})});
+sL(false);
+if(d&&d.id){sDone(true);setTimeout(()=>onDone(),2000);}
+else sErr(d.msg||d.message||d.error||"Password update na thayo — link expire thai gayu hoy shake");
+};
+return<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:C.bg,padding:20}}>
+<div style={{width:"100%",maxWidth:360}}>
+<div style={{textAlign:"center",marginBottom:22}}><Logo s={40}/><h2 style={{fontSize:20,fontWeight:800,marginTop:10,marginBottom:4}}>Set new password</h2><p style={{color:C.txt2,fontSize:13}}>Enter a new password for your account</p></div>
+<Card sx={{padding:22}}>
+{done?<div style={{textAlign:"center",padding:6}}>
+<div style={{fontSize:32,marginBottom:10}}>✅</div>
+<div style={{fontSize:14,fontWeight:700,marginBottom:6}}>Password update thayo!</div>
+<div style={{fontSize:13,color:C.txt2}}>Login page par jai rahya cho...</div>
+</div>:<div style={{display:"flex",flexDirection:"column",gap:12}}>
+<Inp lbl="New Password" ph="Min 6 characters" val={pw} onChange={e=>sPw(e.target.value)} type="password"/>
+<Inp lbl="Confirm Password" ph="Pharthi nakho" val={pw2} onChange={e=>sPw2(e.target.value)} type="password"/>
+{err&&<div style={{fontSize:12,color:C.red,background:`${C.red}12`,padding:"8px 12px",borderRadius:7}}>{err}</div>}
+<Btn v="grad" full sz="lg" onClick={submit} dis={loading}>{loading?<Spin/>:"Update Password"}</Btn>
+</div>}
+</Card>
+</div>
+</div>;
+}
+
+function App(){
+const[sc,sSc]=useState("login");const[auth,sAuth]=useState(null);const[prof,sProf]=useState(null);const[pg,sPg]=useState("dash");const[recoveryToken,sRecTok]=useState(null);const[booting,sBooting]=useState(true);
+useEffect(()=>{
+const hash=window.location.hash;
+if(hash&&hash.includes("type=recovery")){
+const params=new URLSearchParams(hash.substring(1));
+const tok=params.get("access_token");
+if(tok){sRecTok(tok);sSc("reset");window.history.replaceState(null,"",window.location.pathname);sBooting(false);return;}
+}
+const saved=session.load();
+if(saved&&saved.access_token&&saved.user){
+api.prof(saved.access_token,saved.user.id).then(p=>{
+if(p===null||p===undefined){
+// token might still be valid even if profile fetch returns nothing unusual; try anyway
+}
+sAuth(saved);
+sProf(p||{full_name:saved.user.email?.split("@")[0],role:"mgr"});
+sSc("app");sBooting(false);
+}).catch(()=>{session.clear();sBooting(false);});
+}else{
+sBooting(false);
+}
+},[]);
+const login=async(data)=>{sAuth(data);session.save(data);const p=await api.prof(data.access_token,data.user.id);sProf(p||{full_name:data.user.email?.split("@")[0],role:"mgr"});sSc("app");sPg("dash");};
+const logout=async()=>{if(auth)await api.out(auth.access_token);session.clear();sAuth(null);sProf(null);sSc("login");};
+const nav=p=>{if(p==="price"){sSc("price");return;}sPg(p);};
+const page=()=>{if(!auth)return null;const role=prof?.role||"mgr";const companyId=prof?.company_id;switch(pg){case"dash":return<Dashboard user={auth.user} prof={prof} token={auth.access_token} onNav={nav}/>;case"proj":return<Projects token={auth.access_token} uid={auth.user.id} role={role} companyId={companyId}/>;case"risks":return<Risks token={auth.access_token} uid={auth.user.id} role={role} companyId={companyId}/>;case"team":return<TeamPage token={auth.access_token} companyId={companyId}/>;case"cfg":return<Settings token={auth.access_token} uid={auth.user.id} prof={prof} onUpdate={p=>sProf({...prof,...p})}/>;default:return<Dashboard user={auth.user} prof={prof} token={auth.access_token} onNav={nav}/>;}};
+if(booting)return<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:C.bg}}><Spin/></div>;
+return<div style={{fontFamily:"Inter,-apple-system,sans-serif",background:C.bg,minHeight:"100vh",color:C.txt}}>
+{sc==="login"&&<Login onLogin={login} onSignup={()=>sSc("signup")} onForgot={()=>sSc("forgot")}/>}
+{sc==="signup"&&<Signup onLogin={login}/>}
+{sc==="forgot"&&<ForgotPw onBack={()=>sSc("login")}/>}
+{sc==="reset"&&<ResetPw token={recoveryToken} onDone={()=>sSc("login")}/>}
+{sc==="price"&&<Pricing onBack={()=>sSc("app")}/>}
+{sc==="app"&&<div style={{display:"flex",minHeight:"100vh"}}>
+<Sidebar user={auth?.user} prof={prof} pg={pg} onNav={nav} onOut={logout}/>
+<div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0}}>
+<header style={{height:52,background:C.surf,borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",padding:"0 20px",fontSize:14,fontWeight:700,position:"sticky",top:0,zIndex:10}}>{TT[pg]||"Dashboard"}</header>
+<main style={{flex:1,padding:20,overflowY:"auto"}}>{page()}</main>
+</div>
+</div>}
+</div>;
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
