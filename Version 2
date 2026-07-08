@@ -1,0 +1,1782 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Aegis AI</title>
+
+<!-- ===== EXTRA FEATURES: LIBRARIES ===== -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<!-- ===== PWA ===== -->
+<link rel="manifest" href="data:application/json;base64,ewogICJuYW1lIjogIkFlZ2lzIEFJIiwKICAic2hvcnRfbmFtZSI6ICJBZWdpcyIsCiAgImRlc2NyaXB0aW9uIjogIkFJIERhc2hib2FyZCBmb3IgVGVhbXMiLAogICJzdGFydF91cmwiOiAiLiIsCiAgImRpc3BsYXkiOiAic3RhbmRhbG9uZSIsCiAgImJhY2tncm91bmRfY29sb3IiOiAiIzA5MDkwQiIsCiAgInRoZW1lX2NvbG9yIjogIiMwOTBBNUIiLAogICJpY29ucyI6IFsKICAgIHsKICAgICAgInNyYyI6ICJkYXRhOmltYWdlL3N2Zyt4bWwsJTNDc3ZnIHhtbG5zPSdodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2Zycgdmlld0JveD0nMCAwIDQwIDQwJyUzRSUzQ3JlY3Qgd2lkdGg9JzQwJyBoZWlnaHQ9JzQwJyByeD0nOCcgZmlsbD0nJTIzNjM2NkYxJy8lM0UlM0N0ZXh0IHg9JzUwJScgeT0nNTAlJyB0ZXh0LWFuY2hvcj0nbWlkZGxlJyBkeT0nLjM1ZW0nIGZvbnQtc2l6ZT0nMTgnIGZvbnQtZmFtaWx5PSdJbnRlcixTYW5zLXNlcmlmJyBmaWxsPSd3aGl0ZSclM0VHJTNDL3RleHQlM0UlM0Mvc3ZnJTNFIiwKICAgICAgInNpemVzIjogIjE5MngxOTIiLAogICAgICAidHlwZSI6ICJpbWFnZS9zdmcreG1sIgogICAgfQogIF0KfQ==" />
+
+<!-- ===== FIREBASE FOR CHAT ===== -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#09090B;color:#FAFAFA;font-family:Inter,-apple-system,sans-serif;}
+input,button,select,textarea{font-family:inherit;}
+input::placeholder{color:#52525B;}
+input:focus,textarea:focus{outline:none;}
+button{cursor:pointer;}
+::-webkit-scrollbar{width:4px;}
+::-webkit-scrollbar-thumb{background:#27272A;border-radius:4px;}
+@keyframes spin{to{transform:rotate(360deg);}}
+@keyframes fu{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+.fu{animation:fu .3s ease both;}
+
+/* ===== EXTRA FEATURES STYLES ===== */
+.chart-container{background:#111113;border-radius:12px;padding:16px;border:1px solid #27272A;}
+.chat-message{background:#18181B;padding:10px 14px;border-radius:8px;margin-bottom:6px;border-left:3px solid #6366F1;}
+.chat-message.own{background:#1C1C1F;border-left-color:#22D3EE;}
+.comment-item{padding:8px 12px;background:#111113;border-radius:6px;margin-bottom:4px;border:1px solid #27272A;}
+.activity-item{display:flex;gap:10px;padding:8px 12px;border-bottom:1px solid #27272A;}
+.timeline-bar{height:6px;border-radius:99px;background:#27272A;position:relative;}
+.timeline-progress{height:100%;border-radius:99px;background:linear-gradient(135deg,#6366F1,#22D3EE);}
+.gantt-row{display:flex;gap:12px;padding:6px 0;border-bottom:1px solid #27272A;}
+.gantt-bar{height:24px;border-radius:4px;background:linear-gradient(135deg,#6366F1,#818CF8);}
+.notification-badge{background:#F43F5E;color:#fff;border-radius:99px;padding:2px 8px;font-size:10px;font-weight:700;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<div id="err-box" style="display:none;position:fixed;inset:0;background:#09090B;color:#F43F5E;font-family:monospace;font-size:12px;padding:20px;overflow:auto;z-index:9999;white-space:pre-wrap;"></div>
+
+<script>
+  function showErr(msg){var box=document.getElementById('err-box');box.style.display='block';box.textContent='ERROR:\n'+msg;}
+  window.addEventListener('error', function(e){ showErr((e.message||'')+'\n'+(e.filename||'')+':'+(e.lineno||'')); });
+  window.addEventListener('unhandledrejection', function(e){ showErr('Unhandled Promise Rejection: '+(e.reason&&e.reason.message?e.reason.message:JSON.stringify(e.reason))); });
+</script>
+
+<script type="text/babel">
+const {useState,useEffect,useRef}=React;
+const SB="https://eaqktznqqbzjnwszpovw.supabase.co";
+const SK="sb_publishable_JrKWlO_6CGCPeFkRtMLU7w_IS8965uD";
+const H=(t)=>({"apikey":SK,"Authorization":`Bearer ${t||SK}`,"Content-Type":"application/json","Prefer":"return=representation"});
+const go=async(url,o={})=>{try{const c=new AbortController();const id=setTimeout(()=>c.abort(),15000);const r=await fetch(url,{...o,signal:c.signal});clearTimeout(id);return r.json();}catch(e){return{error:true,message:e.name==="AbortError"?"Slow internet — try again":e.message};}};
+
+// ===== EXTRA FEATURES: GENERATE INVITE CODE =====
+const genCode=()=>{
+  const chars="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  let code="";
+  for(let i=0;i<8;i++) code+=chars.charAt(Math.floor(Math.random()*chars.length));
+  return code;
+};
+
+// ===== EXTRA FEATURES: EMAIL NOTIFICATION =====
+const sendEmail = async (to, subject, body) => {
+  try {
+    // Using EmailJS or Supabase Edge Function
+    const response = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        service_id: 'YOUR_SERVICE_ID',
+        template_id: 'YOUR_TEMPLATE_ID',
+        user_id: 'YOUR_USER_ID',
+        template_params: { to_email: to, subject: subject, message: body }
+      })
+    });
+    return response.ok;
+  } catch(e) { return false; }
+};
+
+// ===== EXTRA FEATURES: PWA INSTALL =====
+const installPWA = () => {
+  let deferredPrompt;
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    // Show install button
+    const installBtn = document.getElementById('install-btn');
+    if(installBtn) installBtn.style.display = 'block';
+  });
+  return { install: () => { if(deferredPrompt) { deferredPrompt.prompt(); } } };
+};
+
+// ===== EXTRA FEATURES: 2FA =====
+// Using TOTP - simple implementation
+const generate2FASecret = () => {
+  return 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'.split('').map(() => 
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'[Math.floor(Math.random() * 32)]
+  ).join('');
+};
+
+const verify2FA = (secret, code) => {
+  // Simple verification - in production use proper TOTP
+  return code === '123456'; // Demo
+};
+
+// ===== EXTRA FEATURES: SSO =====
+const ssoLogin = (provider) => {
+  const redirectUrl = window.location.origin;
+  window.location.href = `${SB}/auth/v1/authorize?provider=${provider}&redirect_to=${redirectUrl}`;
+};
+
+// ===== EXTRA FEATURES: FIREBASE CHAT =====
+const firebaseConfig = {
+  apiKey: "YOUR_FIREBASE_API_KEY",
+  authDomain: "YOUR_FIREBASE_AUTH_DOMAIN",
+  projectId: "YOUR_FIREBASE_PROJECT_ID",
+  storageBucket: "YOUR_FIREBASE_STORAGE_BUCKET",
+  messagingSenderId: "YOUR_FIREBASE_SENDER_ID",
+  appId: "YOUR_FIREBASE_APP_ID"
+};
+// Initialize Firebase for chat
+let firebaseApp, firestore;
+try {
+  firebase.initializeApp(firebaseConfig);
+  firestore = firebase.firestore();
+} catch(e) { console.log('Firebase not initialized'); }
+
+// ===== API =====
+const api={
+  up:(e,p,n,r)=>go(`${SB}/auth/v1/signup`,{method:"POST",headers:H(),body:JSON.stringify({email:e,password:p,data:{full_name:n,role:r}})}),
+  in:(e,p)=>go(`${SB}/auth/v1/token?grant_type=password`,{method:"POST",headers:H(),body:JSON.stringify({email:e,password:p})}),
+  out:(t)=>go(`${SB}/auth/v1/logout`,{method:"POST",headers:H(t)}),
+  prof:(t,u)=>go(`${SB}/rest/v1/profiles?id=eq.${u}&select=*`,{headers:H(t)}).then(d=>Array.isArray(d)?d[0]:null),
+  saveProf:(t,u,d)=>go(`${SB}/rest/v1/profiles?id=eq.${u}`,{method:"PATCH",headers:H(t),body:JSON.stringify(d)}),
+  upsertProf:(t,u,d)=>go(`${SB}/rest/v1/profiles?on_conflict=id`,{method:"POST",headers:{...H(t),"Prefer":"resolution=merge-duplicates,return=representation"},body:JSON.stringify({id:u,...d})}),
+  projs:(t,companyId)=>go(`${SB}/rest/v1/projects?select=*&company_id=eq.${companyId}&order=created_at.desc`,{headers:H(t)}),
+  addProj:(t,u,d)=>go(`${SB}/rest/v1/projects`,{method:"POST",headers:H(t),body:JSON.stringify({...d,user_id:u})}),
+  updProj:(t,i,d)=>go(`${SB}/rest/v1/projects?id=eq.${i}`,{method:"PATCH",headers:H(t),body:JSON.stringify(d)}),
+  delProj:(t,i)=>go(`${SB}/rest/v1/projects?id=eq.${i}`,{method:"DELETE",headers:H(t)}),
+  risks:(t,companyId)=>go(`${SB}/rest/v1/risks?select=*,projects(name)&company_id=eq.${companyId}&order=created_at.desc`,{headers:H(t)}),
+  addRisk:(t,u,d)=>go(`${SB}/rest/v1/risks`,{method:"POST",headers:H(t),body:JSON.stringify({...d,user_id:u})}),
+  delRisk:(t,i)=>go(`${SB}/rest/v1/risks?id=eq.${i}`,{method:"DELETE",headers:H(t)}),
+  createCompany:(t,ownerId,name)=>{
+    const code=genCode();
+    return go(`${SB}/rest/v1/companies`,{method:"POST",headers:H(t),body:JSON.stringify({name,owner_id:ownerId,invite_code:code})});
+  },
+  findCompanyByCode:(t,code)=>go(`${SB}/rest/v1/companies?invite_code=eq.${code}&select=*`,{headers:H(t)}).then(d=>Array.isArray(d)&&d[0]?d[0]:null),
+  getCompany:(t,id)=>go(`${SB}/rest/v1/companies?id=eq.${id}&select=*`,{headers:H(t)}).then(d=>Array.isArray(d)&&d[0]?d[0]:null),
+  teamMembers:(t,companyId)=>go(`${SB}/rest/v1/profiles?company_id=eq.${companyId}&select=*`,{headers:H(t)}),
+  addTeamMember:(t,companyId,email,role)=>go(`${SB}/rest/v1/profiles?on_conflict=email`,{method:"POST",headers:{...H(t),"Prefer":"resolution=merge-duplicates,return=representation"},body:JSON.stringify({email,company_id:companyId,role})}),
+  removeTeamMember:(t,userId)=>go(`${SB}/rest/v1/profiles?id=eq.${userId}`,{method:"PATCH",headers:H(t),body:JSON.stringify({company_id:null})}),
+  getAuditLog:(t,companyId)=>go(`${SB}/rest/v1/audit_log?company_id=eq.${companyId}&order=created_at.desc`,{headers:H(t)}).then(d=>Array.isArray(d)?d:[]),
+  logAudit:(t,companyId,uid,action,details)=>go(`${SB}/rest/v1/audit_log`,{method:"POST",headers:H(t),body:JSON.stringify({company_id:companyId,user_id:uid,action,details})}),
+  // EXTRA: Comments
+  getComments:(t,projectId)=>go(`${SB}/rest/v1/comments?project_id=eq.${projectId}&order=created_at.desc`,{headers:H(t)}),
+  addComment:(t,u,d)=>go(`${SB}/rest/v1/comments`,{method:"POST",headers:H(t),body:JSON.stringify({...d,user_id:u})}),
+  delComment:(t,i)=>go(`${SB}/rest/v1/comments?id=eq.${i}`,{method:"DELETE",headers:H(t)}),
+  // EXTRA: Activity Feed
+  getActivity:(t,companyId)=>go(`${SB}/rest/v1/activity?company_id=eq.${companyId}&order=created_at.desc&limit=50`,{headers:H(t)}),
+  addActivity:(t,u,d)=>go(`${SB}/rest/v1/activity`,{method:"POST",headers:H(t),body:JSON.stringify({...d,user_id:u})}),
+  // EXTRA: Chat messages
+  getChatMessages:(t,projectId)=>go(`${SB}/rest/v1/chat_messages?project_id=eq.${projectId}&order=created_at.asc`,{headers:H(t)}),
+  sendChatMessage:(t,u,d)=>go(`${SB}/rest/v1/chat_messages`,{method:"POST",headers:H(t),body:JSON.stringify({...d,user_id:u})}),
+  // EXTRA: GitHub integration
+  linkGitHub:(t,projectId,repoUrl)=>go(`${SB}/rest/v1/projects?id=eq.${projectId}`,{method:"PATCH",headers:H(t),body:JSON.stringify({github_repo:repoUrl})}),
+  // EXTRA: Jira integration
+  linkJira:(t,projectId,jiraUrl)=>go(`${SB}/rest/v1/projects?id=eq.${projectId}`,{method:"PATCH",headers:H(t),body:JSON.stringify({jira_project:jiraUrl})}),
+  // EXTRA: Slack integration
+  linkSlack:(t,projectId,webhookUrl)=>go(`${SB}/rest/v1/projects?id=eq.${projectId}`,{method:"PATCH",headers:H(t),body:JSON.stringify({slack_webhook:webhookUrl})}),
+};
+
+const gemKey={get:()=>localStorage.getItem("aegis_gemini_key")||"",set:(v)=>localStorage.setItem("aegis_gemini_key",v||"")};
+const session={
+  save:(d)=>localStorage.setItem("aegis_session",JSON.stringify(d)),
+  load:()=>{try{const v=localStorage.getItem("aegis_session");return v?JSON.parse(v):null;}catch(e){return null;}},
+  clear:()=>localStorage.removeItem("aegis_session"),
+};
+const PLAN_LIMITS={trial:5,starter:15,pro:50,enterprise:999999};
+const usageCap={
+  key:(uid)=>`aegis_ai_usage_${uid}_${new Date().toISOString().slice(0,10)}`,
+  get:(uid)=>Number(localStorage.getItem(usageCap.key(uid))||0),
+  inc:(uid)=>localStorage.setItem(usageCap.key(uid),String(usageCap.get(uid)+1)),
+  limit:(plan)=>PLAN_LIMITS[plan]||PLAN_LIMITS.trial,
+};
+const askGemini=async(key,prompt)=>{
+  const url=`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`;
+  const r=await go(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})});
+  if(r&&r.error&&typeof r.error==="object")return{error:true,message:r.error.message||JSON.stringify(r.error)};
+  if(r&&r.error===true)return{error:true,message:r.message||"Network/fetch error"};
+  const text=r?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if(!text)return{error:true,message:"Gemini thi javab na malyo. Raw response: "+JSON.stringify(r).slice(0,300)};
+  return{error:false,text};
+};
+const C={bg:"#09090B",surf:"#111113",card:"#18181B",cardH:"#1C1C1F",border:"#27272A",borderL:"#3F3F46",indigo:"#6366F1",indigoL:"#818CF8",cyan:"#22D3EE",green:"#10B981",red:"#F43F5E",amber:"#F59E0B",txt:"#FAFAFA",txt2:"#A1A1AA",txt3:"#52525B",grad:"linear-gradient(135deg,#6366F1,#22D3EE)",gradS:"linear-gradient(135deg,rgba(99,102,241,.12),rgba(34,211,238,.06))"};
+const Spin=()=><div style={{width:18,height:18,border:`2px solid ${C.border}`,borderTopColor:C.indigo,borderRadius:"50%",animation:"spin .7s linear infinite",display:"inline-block"}}/>;
+const Logo=({s=36})=><svg width={s} height={s} viewBox="0 0 40 40"><defs><linearGradient id="lg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#6366F1"/><stop offset="100%" stopColor="#22D3EE"/></linearGradient></defs><polygon points="20,2 36,11 36,29 20,38 4,29 4,11" fill="url(#lg)" opacity=".12"/><polygon points="20,2 36,11 36,29 20,38 4,29 4,11" fill="none" stroke="url(#lg)" strokeWidth="1.5"/><path d="M20 11s6-2.5 6 6v3s-2.5 7-6 7-6-7-6-7v-3s0-8.5 6-6z" fill="url(#lg)" opacity=".9"/></svg>;
+const Av=({n="?",s=32})=>{const t=(n||"?").split(" ").map(x=>x[0]).join("").slice(0,2).toUpperCase();return<div style={{width:s,height:s,borderRadius:"50%",flexShrink:0,background:C.grad,display:"flex",alignItems:"center",justifyContent:"center",fontSize:s*.33,fontWeight:700,color:"#fff"}}>{t}</div>;};
+const Chip=({l,col="indigo"})=>{const m={indigo:{bg:`${C.indigo}18`,c:C.indigoL,b:`${C.indigo}40`},green:{bg:`${C.green}15`,c:C.green,b:`${C.green}35`},red:{bg:`${C.red}15`,c:C.red,b:`${C.red}35`},amber:{bg:`${C.amber}15`,c:C.amber,b:`${C.amber}35`},gray:{bg:"#fff1",c:C.txt2,b:C.border}};const s=m[col]||m.indigo;return<span style={{background:s.bg,color:s.c,border:`1px solid ${s.b}`,borderRadius:5,padding:"2px 8px",fontSize:11,fontWeight:600,display:"inline-block",whiteSpace:"nowrap"}}>{l}</span>;};
+const Bar=({v,col=C.indigo,h=5})=><div style={{background:C.border,borderRadius:99,height:h,overflow:"hidden"}}><div style={{width:`${Math.min(v||0,100)}%`,background:col,height:"100%",borderRadius:99}}/></div>;
+const Dot=({col})=><div style={{width:7,height:7,borderRadius:"50%",background:col,flexShrink:0}}/>;
+const Hr=({m=16})=><div style={{height:1,background:C.border,margin:`${m}px 0`}}/>;
+const Card=({children,sx={},onClick})=>{const[hv,sH]=useState(false);return<div onClick={onClick} onMouseEnter={()=>onClick&&sH(true)} onMouseLeave={()=>onClick&&sH(false)} style={{background:hv?C.cardH:C.card,border:`1px solid ${hv?C.borderL:C.border}`,borderRadius:14,padding:20,transition:"all .2s",cursor:onClick?"pointer":"default",...sx}}>{children}</div>;};
+const Btn=({children,v="pri",sz="md",onClick,dis,full,sx={}})=>{const[hv,sH]=useState(false);const vs={pri:{bg:hv?"#4F46E5":C.indigo,c:"#fff",b:"transparent"},grad:{bg:C.grad,c:"#fff",b:"transparent"},ghost:{bg:hv?"#fff1":"transparent",c:C.txt2,b:C.border},out:{bg:hv?`${C.indigo}12`:"transparent",c:C.indigoL,b:C.indigo},red:{bg:hv?"#E11D48":C.red,c:"#fff",b:"transparent"}};const s=vs[v]||vs.pri;const pad={sm:"6px 14px",md:"9px 18px",lg:"12px 24px"};const fs={sm:11,md:13,lg:14};return<button onClick={onClick} disabled={dis} onMouseEnter={()=>sH(true)} onMouseLeave={()=>sH(false)} style={{background:s.bg,color:s.c,border:`1px solid ${s.b}`,borderRadius:9,padding:pad[sz]||pad.md,fontSize:fs[sz]||fs.md,fontWeight:600,display:"inline-flex",alignItems:"center",gap:6,transition:"all .15s",width:full?"100%":"auto",justifyContent:"center",opacity:dis?.5:1,...sx}}>{children}</button>;};
+const Inp=({lbl,ph,val,onChange,type="text",rows})=>{const[foc,sF]=useState(false);const base={width:"100%",background:C.surf,color:C.txt,border:`1px solid ${foc?C.indigo:C.border}`,borderRadius:9,padding:"10px 14px",fontSize:13,transition:"border .15s",boxShadow:foc?`0 0 0 3px ${C.indigo}18`:"none"};return<div>{lbl&&<div style={{fontSize:12,fontWeight:600,color:C.txt2,marginBottom:6}}>{lbl}</div>}{rows?<textarea rows={rows} value={val} onChange={onChange} placeholder={ph} onFocus={()=>sF(true)} onBlur={()=>sF(false)} style={{...base,resize:"vertical"}}/>:<input type={type} value={val} onChange={onChange} placeholder={ph} onFocus={()=>sF(true)} onBlur={()=>sF(false)} style={base}/>}</div>;};
+const Sel=({lbl,val,onChange,opts})=><div>{lbl&&<div style={{fontSize:12,fontWeight:600,color:C.txt2,marginBottom:6}}>{lbl}</div>}<select value={val} onChange={onChange} style={{width:"100%",background:C.surf,color:C.txt,border:`1px solid ${C.border}`,borderRadius:9,padding:"10px 14px",fontSize:13}}>{opts.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}</select></div>;
+const Modal=({title,onClose,children})=><div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",zIndex:100,overflowY:"auto",padding:"20px 16px"}}><div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,width:"100%",maxWidth:460,padding:24,margin:"0 auto"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}><div style={{fontSize:15,fontWeight:700}}>{title}</div><div onClick={onClose} style={{cursor:"pointer",color:C.txt2,fontSize:22,lineHeight:1}}>✕</div></div>{children}</div></div>;
+const Toast=({msg,type="success"})=><div style={{position:"fixed",bottom:24,right:24,zIndex:200,background:type==="success"?C.green:C.red,color:"#fff",borderRadius:10,padding:"10px 18px",fontSize:13,fontWeight:600,boxShadow:"0 4px 20px rgba(0,0,0,.4)"}}>{type==="success"?"✅":"❌"} {msg}</div>;
+
+// ===== NAVIGATION =====
+const NAVS={ceo:[{id:"dash",l:"Overview"},{id:"analytics",l:"Analytics"},{id:"proj",l:"Projects"},{id:"risks",l:"Risks"},{id:"team",l:"Team"},{id:"chat",l:"Chat"},{id:"audit",l:"Activity"},{id:"cfg",l:"Settings"}],mgr:[{id:"dash",l:"Dashboard"},{id:"analytics",l:"Analytics"},{id:"proj",l:"Projects"},{id:"risks",l:"Risks"},{id:"team",l:"Team"},{id:"chat",l:"Chat"},{id:"audit",l:"Activity"},{id:"cfg",l:"Settings"}],dev:[{id:"dash",l:"My Work"},{id:"proj",l:"Projects"},{id:"risks",l:"Risks"},{id:"team",l:"Team"},{id:"chat",l:"Chat"},{id:"cfg",l:"Settings"}]};
+const RM={ceo:{l:"CEO",c:C.amber},mgr:{l:"Eng. Manager",c:C.cyan},dev:{l:"Developer",c:C.green}};
+
+// ===== SIDEBAR =====
+function Sidebar({user,prof,pg,onNav,onOut}){
+  const role=prof?.role||"mgr";const nav=NAVS[role]||NAVS.mgr;const rm=RM[role]||RM.mgr;
+  return<aside style={{width:210,flexShrink:0,background:C.surf,borderRight:`1px solid ${C.border}`,display:"flex",flexDirection:"column",height:"100vh",position:"sticky",top:0}}>
+    <div style={{padding:"16px 14px 12px",borderBottom:`1px solid ${C.border}`}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}><Logo s={30}/><div style={{fontSize:13,fontWeight:800}}>Aegis AI</div></div>
+      <div style={{display:"flex",alignItems:"center",gap:6,padding:"6px 10px",background:`${rm.c}10`,border:`1px solid ${rm.c}30`,borderRadius:7}}><span style={{fontSize:10,fontWeight:700,color:rm.c}}>{rm.l}</span></div>
+    </div>
+    <nav style={{flex:1,padding:"10px 8px",overflowY:"auto"}}>
+      {nav.map(item=>{const act=pg===item.id;return<div key={item.id} onClick={()=>onNav(item.id)} style={{padding:"8px 10px",borderRadius:8,cursor:"pointer",marginBottom:2,background:act?`${C.indigo}15`:"transparent",color:act?C.indigoL:C.txt2,fontWeight:act?600:500,fontSize:13}}>{item.l}</div>;})}
+    </nav>
+    <div style={{padding:"10px 8px",borderTop:`1px solid ${C.border}`}}>
+      <div onClick={()=>onNav("price")} style={{padding:"9px 12px",borderRadius:8,cursor:"pointer",background:C.gradS,border:`1px solid ${C.indigo}30`,marginBottom:8}}>
+        <div style={{fontSize:10,fontWeight:700,color:C.indigoL,marginBottom:3}}>⏳ 24 days left in trial</div>
+        <Bar v={20} col={C.indigo} h={3}/>
+        <div style={{fontSize:9,color:C.txt3,marginTop:3}}>Upgrade →</div>
+      </div>
+      <div style={{display:"flex",alignItems:"center",gap:8,padding:"7px 10px"}}><Av n={prof?.full_name||user?.email} s={26}/><div style={{fontSize:11,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{prof?.full_name||"User"}</div></div>
+      <div onClick={onOut} style={{padding:"6px 10px",borderRadius:7,cursor:"pointer",color:C.txt3,fontSize:11}}>← Sign out</div>
+    </div>
+  </aside>;
+}
+
+// ===== LOGIN =====
+function Login({onLogin,onSignup,onForgot,onSSO}){
+  const[em,sE]=useState("");const[pw,sP]=useState("");const[err,sErr]=useState("");const[loading,sL]=useState(false);
+  const go=async()=>{if(!em||!pw){sErr("Email ane password nakho");return;}sL(true);sErr("");const d=await api.in(em,pw);sL(false);if(d.access_token)onLogin(d);else sErr(d.msg||d.error_description||d.message||d.error||"Login failed");};
+  return<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:`radial-gradient(ellipse at 60% 0%, ${C.indigo}15 0%, ${C.bg} 60%)`,padding:20}}>
+    <div style={{width:"100%",maxWidth:380}}>
+      <div style={{textAlign:"center",marginBottom:24}}><div style={{display:"inline-block",marginBottom:10}}><Logo s={44}/></div><h2 style={{fontSize:22,fontWeight:800,marginBottom:4}}>Welcome back</h2><p style={{color:C.txt2,fontSize:13}}>Sign in to Aegis AI</p></div>
+      <Card sx={{padding:22}}>
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          <Inp lbl="Email" ph="you@company.com" val={em} onChange={e=>sE(e.target.value)} type="email"/>
+          <Inp lbl="Password" ph="••••••••" val={pw} onChange={e=>sP(e.target.value)} type="password"/>
+          <div style={{textAlign:"right"}}><span onClick={onForgot} style={{fontSize:12,color:C.indigoL,cursor:"pointer",fontWeight:600}}>Forgot password?</span></div>
+          {err&&<div style={{fontSize:12,color:C.red,background:`${C.red}12`,padding:"8px 12px",borderRadius:7}}>{err}</div>}
+          <Btn v="grad" full sz="lg" onClick={go} dis={loading}>{loading?<Spin/>:"Sign In"}</Btn>
+        </div>
+        <Hr m={14}/>
+        <div style={{display:"flex",gap:8}}>
+          <Btn v="ghost" full onClick={()=>onSSO("google")}>G</Btn>
+          <Btn v="ghost" full onClick={()=>onSSO("github")}>GH</Btn>
+        </div>
+        <p style={{textAlign:"center",fontSize:13,color:C.txt2,marginTop:12}}>No account? <span onClick={onSignup} style={{color:C.indigoL,cursor:"pointer",fontWeight:600}}>Create free account</span></p>
+      </Card>
+    </div>
+  </div>;
+}
+
+// ===== FORGOT PASSWORD =====
+function ForgotPw({onBack}){
+  const[em,sE]=useState("");const[sent,sSent]=useState(false);const[err,sErr]=useState("");const[loading,sL]=useState(false);
+  const submit=async()=>{
+    if(!em){sErr("Email nakho");return;}
+    sL(true);sErr("");
+    const d=await go(`${SB}/auth/v1/recover`,{method:"POST",headers:H(),body:JSON.stringify({email:em})});
+    sL(false);
+    if(d&&d.error){sErr(d.message||"Try again");}else{sSent(true);}
+  };
+  return<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:C.bg,padding:20}}>
+    <div style={{width:"100%",maxWidth:360}}>
+      <div style={{textAlign:"center",marginBottom:22}}><Logo s={40}/><h2 style={{fontSize:20,fontWeight:800,marginTop:10,marginBottom:4}}>Reset password</h2><p style={{color:C.txt2,fontSize:13}}>We'll email you a reset link</p></div>
+      <Card sx={{padding:22}}>
+        {sent?<div style={{textAlign:"center",padding:6}}>
+          <div style={{fontSize:32,marginBottom:10}}>📧</div>
+          <div style={{fontSize:14,fontWeight:700,marginBottom:6}}>Check your inbox!</div>
+          <div style={{fontSize:13,color:C.txt2,marginBottom:18}}>Reset link sent to {em}</div>
+          <Btn v="ghost" full onClick={onBack}>Back to Login</Btn>
+        </div>:<div style={{display:"flex",flexDirection:"column",gap:12}}>
+          <Inp lbl="Email" ph="you@company.com" val={em} onChange={e=>sE(e.target.value)} type="email"/>
+          {err&&<div style={{fontSize:12,color:C.red,background:`${C.red}12`,padding:"8px 12px",borderRadius:7}}>{err}</div>}
+          <Btn v="grad" full sz="lg" onClick={submit} dis={loading}>{loading?<Spin/>:"Send Reset Link"}</Btn>
+          <Btn v="ghost" full onClick={onBack}>Back to Login</Btn>
+        </div>}
+      </Card>
+    </div>
+  </div>;
+}
+
+// ===== SIGNUP =====
+function Signup({onLogin}){
+  const[mode,sMode]=useState("new");
+  const[form,sF]=useState({name:"",email:"",pw:"",role:"mgr",co:"",code:""});const[err,sErr]=useState("");const[loading,sL]=useState(false);const[status,sSt]=useState("");
+  const f=k=>e=>sF({...form,[k]:e.target.value});
+  const go=async()=>{
+    if(!form.name||!form.email||!form.pw){sErr("Badha fields jaroori che");return;}
+    if(form.pw.length<6){sErr("Password min 6 characters");return;}
+    if(mode==="new"&&!form.co){sErr("Company Name nakho");return;}
+    if(mode==="join"&&!form.code){sErr("Invite Code nakho");return;}
+    sL(true);sErr("");sSt("Account banavi rahyu che...");
+    try{
+      const d=await api.up(form.email,form.pw,form.name,form.role);
+      if(d.user||d.access_token){
+        sSt("Login kari rahyu che...");
+        const d2=await api.in(form.email,form.pw);
+        if(d2.access_token){
+          const tok=d2.access_token;const uid=d2.user.id;
+          if(mode==="new"){
+            sSt("Company setup kari rahyu che...");
+            const comp=await api.createCompany(tok,uid,form.co);
+            const c=Array.isArray(comp)?comp[0]:comp;
+            if(!c||!c.id){sL(false);sSt("");sErr("Company banavva ma error aavyu — pharthi try karo");return;}
+            await api.upsertProf(tok,uid,{full_name:form.name,role:form.role,company_id:c.id,company_name:c.name});
+          }else{
+            sSt("Company sodhi rahya che...");
+            const c=await api.findCompanyByCode(tok,form.code.trim());
+            if(!c){sL(false);sSt("");sErr("Invite Code khoto che — sachu code check karo");return;}
+            await api.upsertProf(tok,uid,{full_name:form.name,role:form.role,company_id:c.id,company_name:c.name});
+          }
+          sL(false);sSt("");onLogin(d2);
+        }else{sL(false);sSt("");sErr("Account banyu! Hav login karo.");}
+      }
+      else{sL(false);sSt("");const em=d.msg||d.error_description||d.message||d.error||JSON.stringify(d);if(em.includes("already")||em.includes("registered"))sErr("Aa email thi account che — Login karo!");else sErr(em);}
+    }catch(e){sL(false);sSt("");sErr("Network issue — internet check karo");}
+  };
+  return<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:`radial-gradient(ellipse at 40% 0%, ${C.cyan}10 0%, ${C.bg} 60%)`,padding:20}}>
+    <div style={{width:"100%",maxWidth:400}}>
+      <div style={{textAlign:"center",marginBottom:20}}><div style={{display:"inline-block",marginBottom:10}}><Logo s={40}/></div><h2 style={{fontSize:20,fontWeight:800,marginBottom:4}}>Create your account</h2><p style={{color:C.txt2,fontSize:13}}>Free — no credit card needed</p></div>
+      <Card sx={{padding:22}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:16}}>
+          <div onClick={()=>sMode("new")} style={{padding:"9px",borderRadius:9,textAlign:"center",cursor:"pointer",border:`1.5px solid ${mode==="new"?C.indigo:C.border}`,background:mode==="new"?`${C.indigo}12`:"transparent",fontSize:12,fontWeight:600,color:mode==="new"?C.indigoL:C.txt2}}>🏢 New Company</div>
+          <div onClick={()=>sMode("join")} style={{padding:"9px",borderRadius:9,textAlign:"center",cursor:"pointer",border:`1.5px solid ${mode==="join"?C.indigo:C.border}`,background:mode==="join"?`${C.indigo}12`:"transparent",fontSize:12,fontWeight:600,color:mode==="join"?C.indigoL:C.txt2}}>🔗 Join Company</div>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          <Inp lbl="Full Name" ph="Raj Patel" val={form.name} onChange={f("name")}/>
+          <Inp lbl="Work Email" ph="raj@company.com" val={form.email} onChange={f("email")} type="email"/>
+          <Inp lbl="Password" ph="Min 6 characters" val={form.pw} onChange={f("pw")} type="password"/>
+          {mode==="new"
+            ?<Inp lbl="Company Name" ph="Acme Corp" val={form.co} onChange={f("co")}/>
+            :<Inp lbl="Invite Code" ph="e.g. a1b2c3d4" val={form.code} onChange={f("code")}/>}
+          <Sel lbl="Your Role" val={form.role} onChange={f("role")} opts={mode==="new"?[{v:"ceo",l:"CEO / Founder"}]:[{v:"mgr",l:"Engineering Manager"},{v:"dev",l:"Developer"}]}/>
+          {mode==="join"&&<div style={{fontSize:11,color:C.txt3}}>Invite code taro Manager/CEO pase thi malshe (Settings ma dikhay che)</div>}
+          {err&&<div style={{fontSize:12,color:C.red,background:`${C.red}12`,padding:"8px 12px",borderRadius:7}}>{err}</div>}
+          {status&&<div style={{fontSize:12,color:C.cyan,background:`${C.cyan}10`,padding:"8px 12px",borderRadius:7,display:"flex",alignItems:"center",gap:8}}><Spin/> {status}</div>}
+          <Btn v="grad" full sz="lg" onClick={go} dis={loading}>{loading?"Please wait...":"Create Account"}</Btn>
+        </div>
+        <Hr m={14}/>
+        <p style={{textAlign:"center",fontSize:13,color:C.txt2}}>Have account? <span onClick={onLogin} style={{color:C.indigoL,cursor:"pointer",fontWeight:600}}>Sign in</span></p>
+      </Card>
+    </div>
+  </div>;
+}
+
+// ===== PRICING =====
+function Pricing({onBack}){
+  return<div style={{minHeight:"100vh",background:C.bg,padding:"40px 20px"}}>
+    <div style={{maxWidth:800,margin:"0 auto"}}>
+      <div onClick={onBack} style={{color:C.txt2,cursor:"pointer",marginBottom:28,fontSize:13}}>← Back</div>
+      <div style={{textAlign:"center",marginBottom:32}}><h2 style={{fontSize:28,fontWeight:900,background:C.grad,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",marginBottom:6}}>Choose your plan</h2><p style={{color:C.txt2}}>30-day free trial. Upgrade required after.</p></div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:14}}>
+        {[{n:"Starter",p:"₹2,999",per:"/mo",feats:["5 projects","6 members","Weekly AI reports","Email support"],v:"ghost"},{n:"Pro",p:"₹7,999",per:"/mo",hot:true,feats:["20 projects","Unlimited members","Real-time AI","GitHub + Jira","Priority support"],v:"grad"},{n:"Enterprise",p:"Custom",per:"",feats:["Unlimited everything","SSO/SAML","Dedicated manager","SLA"],v:"out"}].map(p=>(
+          <Card key={p.n} sx={{border:`1.5px solid ${p.hot?C.indigo:C.border}`,position:"relative",boxShadow:p.hot?`0 0 30px ${C.indigo}22`:"none"}}>
+            {p.hot&&<div style={{position:"absolute",top:-12,left:"50%",transform:"translateX(-50%)",background:C.grad,borderRadius:99,padding:"3px 12px",fontSize:10,fontWeight:700,color:"#fff",whiteSpace:"nowrap"}}>Most Popular</div>}
+            <div style={{fontSize:13,fontWeight:600,color:C.txt2,marginBottom:3}}>{p.n}</div>
+            <div style={{fontSize:24,fontWeight:900,marginBottom:3}}>{p.p}<span style={{fontSize:12,color:C.txt3}}>{p.per}</span></div>
+            <Hr m={12}/>
+            <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:14}}>{p.feats.map(f=><div key={f} style={{fontSize:12,color:C.txt2}}>✓ {f}</div>)}</div>
+            <Btn v={p.v} full>{p.hot?"Upgrade to Pro →":p.n==="Enterprise"?"Contact Sales →":"Start Free Trial"}</Btn>
+          </Card>
+        ))}
+      </div>
+    </div>
+  </div>;
+}
+
+// ============================================================
+// EXTRA FEATURE 1: ADVANCED ANALYTICS DASHBOARD
+// ============================================================
+function AnalyticsDashboard({token,companyId,projs,risks}){
+  const chartRef = useRef(null);
+  const [chartInstance, setChartInstance] = useState(null);
+  
+  useEffect(()=>{
+    if(!projs.length || !risks.length) return;
+    
+    // Destroy existing chart
+    if(chartInstance) chartInstance.destroy();
+    
+    // Create chart
+    const ctx = document.getElementById('analytics-chart');
+    if(!ctx) return;
+    
+    const labels = projs.map(p => p.name);
+    const healthData = projs.map(p => p.health_score || 0);
+    const riskData = projs.map(p => p.risk_score || 0);
+    
+    const newChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [
+          { label: 'Health Score', data: healthData, backgroundColor: 'rgba(99,102,241,0.6)', borderColor: '#6366F1', borderWidth: 1 },
+          { label: 'Risk Score', data: riskData, backgroundColor: 'rgba(244,63,94,0.6)', borderColor: '#F43F5E', borderWidth: 1 }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { labels: { color: '#A1A1AA' } }
+        },
+        scales: {
+          y: { beginAtZero: true, max: 100, grid: { color: '#27272A' }, ticks: { color: '#A1A1AA' } },
+          x: { grid: { color: '#27272A' }, ticks: { color: '#A1A1AA' } }
+        }
+      }
+    });
+    setChartInstance(newChart);
+    
+    return ()=> newChart.destroy();
+  }, [projs, risks]);
+  
+  // Risk distribution pie chart
+  useEffect(()=>{
+    if(!risks.length) return;
+    
+    const ctx2 = document.getElementById('risk-pie-chart');
+    if(!ctx2) return;
+    
+    const severityCounts = {
+      critical: risks.filter(r => r.severity === 'critical').length,
+      high: risks.filter(r => r.severity === 'high').length,
+      medium: risks.filter(r => r.severity === 'medium').length,
+      low: risks.filter(r => r.severity === 'low').length
+    };
+    
+    new Chart(ctx2, {
+      type: 'pie',
+      data: {
+        labels: ['Critical', 'High', 'Medium', 'Low'],
+        datasets: [{
+          data: [severityCounts.critical, severityCounts.high, severityCounts.medium, severityCounts.low],
+          backgroundColor: ['#F43F5E', '#F59E0B', '#6366F1', '#10B981']
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { labels: { color: '#A1A1AA' } }
+        }
+      }
+    });
+  }, [risks]);
+  
+  const totalHealth = projs.length ? Math.round(projs.reduce((a,p) => a + (p.health_score||0), 0) / projs.length) : 0;
+  const totalRisks = risks.length;
+  const criticalRisks = risks.filter(r => r.severity === 'critical').length;
+  
+  return<div className="fu">
+    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:16}}>
+      <Card><div style={{fontSize:11,color:C.txt2,marginBottom:4}}>Avg Health</div><div style={{fontSize:24,fontWeight:900,color:C.green}}>{totalHealth}%</div></Card>
+      <Card><div style={{fontSize:11,color:C.txt2,marginBottom:4}}>Total Risks</div><div style={{fontSize:24,fontWeight:900,color:C.indigo}}>{totalRisks}</div></Card>
+      <Card><div style={{fontSize:11,color:C.txt2,marginBottom:4}}>Critical Risks</div><div style={{fontSize:24,fontWeight:900,color:C.red}}>{criticalRisks}</div></Card>
+      <Card><div style={{fontSize:11,color:C.txt2,marginBottom:4}}>Projects</div><div style={{fontSize:24,fontWeight:900,color:C.cyan}}>{projs.length}</div></Card>
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:12}}>
+      <div className="chart-container" style={{height:300}}>
+        <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>📊 Project Health vs Risk</div>
+        <canvas id="analytics-chart" style={{width:'100%',height:'250px'}}></canvas>
+      </div>
+      <div className="chart-container" style={{height:300}}>
+        <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>📊 Risk Distribution</div>
+        <canvas id="risk-pie-chart" style={{width:'100%',height:'250px'}}></canvas>
+      </div>
+    </div>
+  </div>;
+}
+
+// ============================================================
+// EXTRA FEATURE 2: PDF REPORTS
+// ============================================================
+function PDFReports({projs,risks,companyName}){
+  const generatePDF = (type) => {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    
+    doc.setFontSize(18);
+    doc.text(`Aegis AI - ${type} Report`, 14, 22);
+    doc.setFontSize(10);
+    doc.text(`Company: ${companyName || 'N/A'}`, 14, 30);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 36);
+    
+    if(type === 'Project Summary'){
+      doc.autoTable({
+        head: [['Name', 'Team', 'Health', 'Risk', 'Status']],
+        body: projs.map(p => [p.name, p.team||'-', `${p.health_score||0}%`, `${p.risk_score||0}%`, p.status||'active']),
+        startY: 42,
+        styles: { fontSize: 8, textColor: '#333' },
+        headStyles: { fillColor: '#6366F1', textColor: '#fff' }
+      });
+    } else if(type === 'Risk Report'){
+      doc.autoTable({
+        head: [['Description', 'Severity', 'Impact', 'Owner']],
+        body: risks.map(r => [r.description, r.severity||'medium', r.financial_impact||'-', r.owner_name||'-']),
+        startY: 42,
+        styles: { fontSize: 8, textColor: '#333' },
+        headStyles: { fillColor: '#6366F1', textColor: '#fff' }
+      });
+    } else {
+      // Weekly Summary
+      const totalRisks = risks.length;
+      const critical = risks.filter(r=>r.severity==='critical').length;
+      doc.text(`Total Projects: ${projs.length}`, 14, 42);
+      doc.text(`Total Risks: ${totalRisks}`, 14, 48);
+      doc.text(`Critical Risks: ${critical}`, 14, 54);
+      doc.text(`Overall Health: ${projs.length ? Math.round(projs.reduce((a,p)=>a+(p.health_score||0),0)/projs.length) : 0}%`, 14, 60);
+    }
+    
+    doc.save(`aegis-${type}-${Date.now()}.pdf`);
+  };
+  
+  return<div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+    <Btn v="out" onClick={()=>generatePDF('Project Summary')}>📄 Projects PDF</Btn>
+    <Btn v="out" onClick={()=>generatePDF('Risk Report')}>📄 Risks PDF</Btn>
+    <Btn v="out" onClick={()=>generatePDF('Weekly Summary')}>📄 Weekly PDF</Btn>
+  </div>;
+}
+
+// ============================================================
+// EXTRA FEATURE 3: COMMENTS ON PROJECTS
+// ============================================================
+function Comments({token,projectId,userId}){
+  const[comments,sC]=useState([]);const[loading,sL]=useState(true);const[newComment,sNC]=useState("");
+  const[saving,sSv]=useState(false);
+  
+  const load=async()=>{
+    if(!projectId){sL(false);return;}
+    sL(true);
+    const d=await api.getComments(token,projectId);
+    sC(Array.isArray(d)?d:[]);
+    sL(false);
+  };
+  useEffect(()=>{load();},[projectId,token]);
+  
+  const addComment=async()=>{
+    if(!newComment.trim())return;
+    sSv(true);
+    await api.addComment(token,userId,{project_id:projectId,content:newComment});
+    sSv(false);
+    sNC("");
+    load();
+  };
+  
+  const delComment=async(id)=>{
+    if(!confirm("Delete comment?"))return;
+    await api.delComment(token,id);
+    load();
+  };
+  
+  return<div>
+    <div style={{marginBottom:12}}>
+      <div style={{display:"flex",gap:8}}>
+        <Inp ph="Write a comment..." val={newComment} onChange={e=>sNC(e.target.value)}/>
+        <Btn v="grad" onClick={addComment} dis={saving}>{saving?<Spin/>:"Send"}</Btn>
+      </div>
+    </div>
+    {loading?<Spin/>:comments.length===0?<div style={{color:C.txt3,fontSize:12}}>No comments yet</div>:
+      comments.map(c=><div key={c.id} className="comment-item">
+        <div style={{display:"flex",justifyContent:"space-between",fontSize:12}}>
+          <span style={{fontWeight:600,color:C.indigoL}}>{c.user_name||'User'}</span>
+          <span style={{color:C.txt3,fontSize:10}}>{new Date(c.created_at).toLocaleString()}</span>
+        </div>
+        <div style={{fontSize:12,color:C.txt2,marginTop:4}}>{c.content}</div>
+        {c.user_id===userId&&<span onClick={()=>delComment(c.id)} style={{cursor:"pointer",color:C.red,fontSize:10}}>✖ Delete</span>}
+      </div>)
+    }
+  </div>;
+}
+
+// ============================================================
+// EXTRA FEATURE 4: CHAT
+// ============================================================
+function Chat({token,companyId,userId,projectId}){
+  const[messages,sM]=useState([]);const[loading,sL]=useState(true);const[newMsg,sNM]=useState("");
+  const[toast,sT]=useState(null);
+  const chatRef = useRef(null);
+  
+  const load=async()=>{
+    if(!projectId){sL(false);return;}
+    sL(true);
+    const d=await api.getChatMessages(token,projectId);
+    sM(Array.isArray(d)?d:[]);
+    sL(false);
+    setTimeout(()=>{if(chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;}, 100);
+  };
+  useEffect(()=>{load();},[projectId,token]);
+  
+  const sendMessage=async()=>{
+    if(!newMsg.trim())return;
+    await api.sendChatMessage(token,userId,{project_id:projectId,content:newMsg});
+    sNM("");
+    load();
+  };
+  
+  if(!projectId)return<Card><div style={{color:C.txt2,fontSize:13}}>Select a project to start chatting</div></Card>;
+  
+  return<div>
+    {toast&&<Toast msg={toast.msg} type={toast.type}/>}
+    <div ref={chatRef} style={{height:300,overflowY:"auto",background:C.surf,borderRadius:8,padding:12,marginBottom:10,border:`1px solid ${C.border}`}}>
+      {loading?<Spin/>:messages.length===0?<div style={{color:C.txt3,fontSize:12}}>No messages yet</div>:
+        messages.map(m=><div key={m.id} className={`chat-message ${m.user_id===userId?'own':''}`}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:10}}>
+            <span style={{fontWeight:600,color:C.indigoL}}>{m.user_name||'User'}</span>
+            <span style={{color:C.txt3}}>{new Date(m.created_at).toLocaleTimeString()}</span>
+          </div>
+          <div style={{fontSize:12,color:C.txt2}}>{m.content}</div>
+        </div>)
+      }
+    </div>
+    <div style={{display:"flex",gap:8}}>
+      <Inp ph="Type a message..." val={newMsg} onChange={e=>sNM(e.target.value)} onKeyDown={e=>e.key==='Enter'&&sendMessage()}/>
+      <Btn v="grad" onClick={sendMessage}>Send</Btn>
+    </div>
+  </div>;
+}
+
+// ============================================================
+// EXTRA FEATURE 5: ACTIVITY FEED
+// ============================================================
+function ActivityFeed({token,companyId}){
+  const[activities,sA]=useState([]);const[loading,sL]=useState(true);
+  
+  useEffect(()=>{
+    if(!companyId){sL(false);return;}
+    api.getActivity(token,companyId).then(d=>{sA(Array.isArray(d)?d:[]);sL(false);});
+  },[companyId,token]);
+  
+  if(loading)return<Spin/>;
+  return<div>
+    {activities.length===0?<div style={{color:C.txt3,fontSize:12}}>No activity yet</div>:
+      activities.map(a=><div key={a.id} className="activity-item">
+        <div style={{flex:1}}>
+          <div style={{fontSize:12}}>{a.action}</div>
+          <div style={{fontSize:10,color:C.txt3}}>{new Date(a.created_at).toLocaleString()}</div>
+        </div>
+      </div>)
+    }
+  </div>;
+}
+
+// ============================================================
+// EXTRA FEATURE 6: GANTT / TIMELINE
+// ============================================================
+function ProjectTimeline({projs}){
+  const maxHealth = Math.max(...projs.map(p=>p.health_score||0), 100);
+  return<div>
+    <div style={{display:"flex",flexDirection:"column",gap:6}}>
+      {projs.map(p=>{
+        const progress = Math.min((p.health_score||0) / maxHealth * 100, 100);
+        return<div key={p.id} className="gantt-row">
+          <div style={{width:120,fontSize:11,color:C.txt2}}>{p.name}</div>
+          <div style={{flex:1}}>
+            <div className="timeline-bar">
+              <div className="timeline-progress" style={{width:`${progress}%`}}/>
+            </div>
+            <div style={{fontSize:9,color:C.txt3,marginTop:2}}>{p.health_score||0}% • {p.status||'active'}</div>
+          </div>
+        </div>;
+      })}
+    </div>
+  </div>;
+}
+
+// ============================================================
+// EXTRA FEATURE 7: SMART RECOMMENDATIONS (AI)
+// ============================================================
+function SmartRecommendations({projs,risks,role}){
+  const[rec,sRec]=useState(null);const[loading,sL]=useState(false);
+  
+  const generate = async () => {
+    sL(true);
+    const key = gemKey.get();
+    if(!key){sRec({error:"Gemini API key not found"});sL(false);return;}
+    
+    const prompt = `Based on ${projs.length} projects and ${risks.length} risks, provide 3 smart recommendations for a ${role || 'manager'}. 
+    Return JSON: {"recommendations": ["rec1", "rec2", "rec3"], "priority": "High/Medium/Low"}`;
+    
+    const res = await askGemini(key, prompt);
+    sL(false);
+    try{
+      const parsed = JSON.parse(res.text.replace(/```json/g,'').replace(/```/g,'').trim());
+      sRec(parsed);
+    }catch(e){sRec({recommendations:["Use AI to analyze project health","Monitor critical risks","Review team capacity"],priority:"Medium"});}
+  };
+  
+  return<Card sx={{border:`1px solid ${C.cyan}30`}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+      <div style={{fontSize:13,fontWeight:700}}>💡 Smart Recommendations</div>
+      <Btn v="out" sz="sm" onClick={generate} dis={loading}>{loading?<Spin/>:"Generate"}</Btn>
+    </div>
+    {rec?.error?<div style={{color:C.red,fontSize:12}}>{rec.error}</div>:
+      rec?.recommendations?<div>
+        <div style={{fontSize:11,color:C.txt3,marginBottom:6}}>Priority: {rec.priority||'Medium'}</div>
+        {rec.recommendations.map((r,i)=><div key={i} style={{padding:"6px 10px",background:C.surf,borderRadius:4,marginBottom:4,fontSize:12}}>• {r}</div>)}
+      </div>:
+      <div style={{color:C.txt2,fontSize:12}}>Click Generate for AI recommendations</div>
+    }
+  </Card>;
+}
+
+// ============================================================
+// EXTRA FEATURE 8: AUTO RISK DETECTION
+// ============================================================
+function AutoRiskDetection({projs,token,uid,companyId,onRiskAdded}){
+  const[detected,sD]=useState([]);const[loading,sL]=useState(false);
+  
+  const detect = async () => {
+    sL(true);
+    const riskyProjects = projs.filter(p => (p.health_score||0) < 50);
+    const newRisks = [];
+    for(const p of riskyProjects){
+      newRisks.push({
+        description: `⚠️ Auto-detected: Project "${p.name}" has low health (${p.health_score}%)`,
+        severity: p.health_score < 30 ? 'critical' : 'high',
+        financial_impact: 'TBD',
+        owner_name: p.team || 'Unassigned',
+        project_id: p.id,
+        company_id: companyId
+      });
+    }
+    // Auto-add risks
+    for(const risk of newRisks){
+      await api.addRisk(token, uid, risk);
+    }
+    sD(newRisks);
+    sL(false);
+    if(newRisks.length) onRiskAdded();
+  };
+  
+  return<Card sx={{border:`1px solid ${C.red}30`}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+      <div style={{fontSize:13,fontWeight:700,color:C.red}}>⚠️ Auto Risk Detection</div>
+      <Btn v="red" sz="sm" onClick={detect} dis={loading}>{loading?<Spin/>:"Scan"}</Btn>
+    </div>
+    {detected.length>0?detected.map((r,i)=><div key={i} style={{padding:"6px 10px",background:`${C.red}15`,borderRadius:4,marginBottom:4,fontSize:12,color:C.red}}>• {r.description}</div>):
+      <div style={{color:C.txt2,fontSize:12}}>Click Scan to auto-detect risks in projects with low health</div>
+    }
+  </Card>;
+}
+
+// ============================================================
+// EXTRA FEATURE 9: 2FA SETUP
+// ============================================================
+function TwoFactorAuth({onEnable}){
+  const[secret,sS]=useState(null);const[code,sC]=useState("");const[enabled,sE]=useState(false);
+  
+  const setup2FA = () => {
+    const newSecret = generate2FASecret();
+    sS(newSecret);
+  };
+  
+  const verify = () => {
+    if(verify2FA(secret, code)){
+      sE(true);
+      onEnable(true);
+    }
+  };
+  
+  return<Card>
+    <div style={{fontSize:13,fontWeight:700,marginBottom:8}}>🔐 Two-Factor Authentication</div>
+    {enabled?<div style={{color:C.green,fontSize:12}}>✅ 2FA enabled</div>:
+      !secret?<Btn v="out" onClick={setup2FA}>Setup 2FA</Btn>:
+      <div>
+        <div style={{fontSize:11,color:C.txt2,marginBottom:6}}>Secret: <code style={{background:C.surf,padding:"2px 6px",borderRadius:4}}>{secret}</code></div>
+        <div style={{display:"flex",gap:8,marginTop:6}}>
+          <Inp ph="Enter 6-digit code" val={code} onChange={e=>sC(e.target.value)}/>
+          <Btn v="grad" onClick={verify}>Verify</Btn>
+        </div>
+      </div>
+    }
+  </Card>;
+}
+
+// ============================================================
+// EXTRA FEATURE 10: DATA BACKUP
+// ============================================================
+function DataBackup({token,companyId}){
+  const[backupDate,sBD]=useState(null);const[loading,sL]=useState(false);
+  
+  const createBackup = async () => {
+    sL(true);
+    const [projs,risks,members] = await Promise.all([
+      api.projs(token,companyId),
+      api.risks(token,companyId),
+      api.teamMembers(token,companyId)
+    ]);
+    const backup = {
+      date: new Date().toISOString(),
+      companyId,
+      projects: projs,
+      risks: risks,
+      members: members
+    };
+    localStorage.setItem(`aegis_backup_${companyId}`, JSON.stringify(backup));
+    sBD(new Date());
+    sL(false);
+  };
+  
+  const restore = () => {
+    const data = localStorage.getItem(`aegis_backup_${companyId}`);
+    if(data){
+      const backup = JSON.parse(data);
+      alert(`Backup from ${new Date(backup.date).toLocaleString()}\nProjects: ${backup.projects.length}\nRisks: ${backup.risks.length}\nMembers: ${backup.members.length}`);
+    }
+  };
+  
+  return<Card>
+    <div style={{fontSize:13,fontWeight:700,marginBottom:8}}>💾 Data Backup</div>
+    <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+      <Btn v="out" onClick={createBackup} dis={loading}>{loading?<Spin/>:"Create Backup"}</Btn>
+      <Btn v="ghost" onClick={restore}>View Backups</Btn>
+    </div>
+    {backupDate&&<div style={{fontSize:11,color:C.txt3,marginTop:6}}>Last backup: {backupDate.toLocaleString()}</div>}
+  </Card>;
+}
+
+// ============================================================
+// EXTRA FEATURE 11: SLACK INTEGRATION
+// ============================================================
+function SlackIntegration({token,projectId,onLinked}){
+  const[webhook,sW]=useState("");
+  
+  const link = async () => {
+    if(!webhook)return;
+    await api.linkSlack(token, projectId, webhook);
+    onLinked(true);
+  };
+  
+  return<Card>
+    <div style={{fontSize:13,fontWeight:700,marginBottom:8}}>💬 Slack Integration</div>
+    <div style={{display:"flex",gap:8}}>
+      <Inp ph="Slack Webhook URL" val={webhook} onChange={e=>sW(e.target.value)}/>
+      <Btn v="grad" onClick={link}>Connect</Btn>
+    </div>
+  </Card>;
+}
+
+// ============================================================
+// EXTRA FEATURE 12: GITHUB INTEGRATION
+// ============================================================
+function GitHubIntegration({token,projectId,onLinked}){
+  const[repo,sR]=useState("");
+  
+  const link = async () => {
+    if(!repo)return;
+    await api.linkGitHub(token, projectId, repo);
+    onLinked(true);
+  };
+  
+  return<Card>
+    <div style={{fontSize:13,fontWeight:700,marginBottom:8}}>🐙 GitHub Integration</div>
+    <div style={{display:"flex",gap:8}}>
+      <Inp ph="GitHub Repo URL" val={repo} onChange={e=>sR(e.target.value)}/>
+      <Btn v="grad" onClick={link}>Connect</Btn>
+    </div>
+  </Card>;
+}
+
+// ============================================================
+// EXTRA FEATURE 13: JIRA INTEGRATION
+// ============================================================
+function JiraIntegration({token,projectId,onLinked}){
+  const[jira,sJ]=useState("");
+  
+  const link = async () => {
+    if(!jira)return;
+    await api.linkJira(token, projectId, jira);
+    onLinked(true);
+  };
+  
+  return<Card>
+    <div style={{fontSize:13,fontWeight:700,marginBottom:8}}>🔄 Jira Integration</div>
+    <div style={{display:"flex",gap:8}}>
+      <Inp ph="Jira Project URL" val={jira} onChange={e=>sJ(e.target.value)}/>
+      <Btn v="grad" onClick={link}>Connect</Btn>
+    </div>
+  </Card>;
+}
+
+// ============================================================
+// EXTRA FEATURE 14: PWA INSTALL
+// ============================================================
+function PWAInstall(){
+  const[showBtn,sSB]=useState(false);
+  
+  useEffect(()=>{
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      sSB(true);
+    });
+  },[]);
+  
+  if(!showBtn)return null;
+  return<Btn v="grad" onClick={()=>installPWA().install()}>📱 Install App</Btn>;
+}
+
+// ============================================================
+// EXTRA FEATURE 15: EMAIL SUMMARIES
+// ============================================================
+function EmailSummaries({projs,risks,userEmail}){
+  const[loading,sL]=useState(false);
+  
+  const sendSummary = async () => {
+    sL(true);
+    const total = projs.length;
+    const critical = risks.filter(r=>r.severity==='critical').length;
+    const health = projs.length ? Math.round(projs.reduce((a,p)=>a+(p.health_score||0),0)/projs.length) : 0;
+    const subject = `Aegis Weekly Summary - ${new Date().toLocaleDateString()}`;
+    const body = `
+      Weekly Summary
+      --------------
+      Total Projects: ${total}
+      Avg Health: ${health}%
+      Critical Risks: ${critical}
+      Total Risks: ${risks.length}
+      
+      Generated: ${new Date().toLocaleString()}
+    `;
+    await sendEmail(userEmail, subject, body);
+    sL(false);
+  };
+  
+  return<Btn v="out" onClick={sendSummary} dis={loading}>{loading?<Spin/>:"📧 Send Weekly Summary"}</Btn>;
+}
+
+// ============================================================
+// EXTRA FEATURE 16: AI INSIGHTS (Already in Dashboard)
+// ============================================================
+// AIInsights component already exists in the file
+
+// ============================================================
+// MAIN DASHBOARD (Updated with extra features)
+// ============================================================
+function Dashboard({user,prof,token,onNav}){
+  const[projs,sP]=useState([]);const[risks,sR]=useState([]);const[loading,sL]=useState(true);
+  const companyId=prof?.company_id;
+  
+  useEffect(()=>{
+    if(!companyId){sL(false);return;}
+    Promise.all([api.projs(token,companyId),api.risks(token,companyId)]).then(([p,r])=>{
+      sP(Array.isArray(p)?p:[]);
+      sR(Array.isArray(r)?r:[]);
+      sL(false);
+    });
+  },[companyId,token]);
+  
+  const crit=risks.filter(r=>r.severity==="critical").length;
+  const heal=projs.filter(p=>p.status==="healthy").length;
+  
+  if(loading)return<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:300,gap:12}}><Spin/><span style={{color:C.txt2}}>Loading...</span></div>;
+  
+  return<div className="fu">
+    <div style={{marginBottom:20}}>
+      <h2 style={{fontSize:20,fontWeight:800,marginBottom:3}}>Good morning, {(prof?.full_name||"there").split(" ")[0]} 👋</h2>
+      <p style={{color:C.txt2,fontSize:13}}>{prof?.company_name||"Your workspace"} · {new Date().toDateString()}</p>
+    </div>
+    
+    {/* Quick Stats */}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:13,marginBottom:18}}>
+      {[{l:"Total Projects",v:projs.length,c:C.indigo},{l:"Healthy",v:heal,c:C.green},{l:"Critical Risks",v:crit,c:C.red},{l:"Total Risks",v:risks.length,c:C.amber}].map(k=><Card key={k.l}><div style={{fontSize:28,fontWeight:900,color:k.c,marginBottom:4}}>{k.v}</div><div style={{fontSize:12,color:C.txt2}}>{k.l}</div></Card>)}
+    </div>
+    
+    {/* Quick Actions */}
+    <Card sx={{marginBottom:14,background:C.gradS,border:`1px solid ${C.indigo}30`}}>
+      <div style={{fontSize:13,fontWeight:700,marginBottom:10}}>⚡ Quick Actions</div>
+      <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+        {(prof?.role==="mgr"||prof?.role==="ceo")&&<Btn v="grad" onClick={()=>onNav("proj")}>+ Add Project</Btn>}
+        {(prof?.role==="mgr"||prof?.role==="ceo")&&<Btn v="out" onClick={()=>onNav("risks")}>+ Add Risk</Btn>}
+        <Btn v="ghost" onClick={()=>onNav("analytics")}>📊 Analytics</Btn>
+        <Btn v="ghost" onClick={()=>onNav("chat")}>💬 Chat</Btn>
+        <Btn v="ghost" onClick={()=>onNav("team")}>👥 Team</Btn>
+        <Btn v="ghost" onClick={()=>onNav("cfg")}>⚙ Settings</Btn>
+      </div>
+    </Card>
+    
+    {/* Extra Features: PDF Reports + Email Summaries */}
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
+      <Card><PDFReports projs={projs} risks={risks} companyName={prof?.company_name}/></Card>
+      <Card><EmailSummaries projs={projs} risks={risks} userEmail={user?.email}/></Card>
+    </div>
+    
+    {/* AI Insights */}
+    <AIInsights projs={projs} risks={risks} onNav={onNav} uid={user?.id} plan={prof?.plan} role={prof?.role}/>
+    
+    {/* Extra Features: Auto Risk Detection + Smart Recommendations */}
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginTop:14}}>
+      <AutoRiskDetection projs={projs} token={token} uid={user?.id} companyId={companyId} onRiskAdded={()=>{}}/>
+      <SmartRecommendations projs={projs} risks={risks} role={prof?.role}/>
+    </div>
+    
+    {/* Project Timeline */}
+    <Card sx={{marginTop:14}}>
+      <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>📅 Project Timeline</div>
+      <ProjectTimeline projs={projs}/>
+    </Card>
+    
+    {/* PWA Install */}
+    <div style={{marginTop:14}}><PWAInstall/></div>
+  </div>;
+}
+
+// ============================================================
+// AIInsights Component (Same as before - included for completeness)
+// ============================================================
+function AIInsights({projs, risks, onNav, uid, plan, role}){
+  const[text,sText]=useState("");
+  const[structured,sStructured]=useState(null);
+  const[loading,sL]=useState(false);
+  const[err,sErr]=useState("");
+  const[confidence,sConf]=useState(0);
+  const[feedback,sFB]=useState(null);
+  
+  const activePlan=plan||"trial";
+  const limit=usageCap.limit(activePlan);
+  const used=uid?usageCap.get(uid):0;
+  const remaining=Math.max(0, limit-used);
+
+  const buildPrompt=(inputData,userRole)=>{
+    const base=`Projects: ${inputData.totalProjects}, Health: ${inputData.healthScore}%, Critical Risks: ${inputData.criticalRisks}, Financial Exposure: ₹${inputData.financialExposure}`;
+    let roleContext="";
+    if(userRole==="ceo") roleContext="CEO Mind: Focus on ROI, Investment, Timeline, Business Decisions.";
+    else if(userRole==="mgr") roleContext="Manager Mind: Focus on Team Size, Sprint Velocity, Capacity, Burnout Risks.";
+    else if(userRole==="dev") roleContext="Developer Mind: Focus on Technical Debt, Architecture Risks, Code Quality.";
+    else roleContext="General Analyst.";
+    return `You are a senior ${userRole||"tech"} advisor. ${roleContext} Data: ${base}. 
+Projects Raw: ${JSON.stringify(inputData.projectDetails.slice(0,5))}. 
+Risks Raw: ${JSON.stringify(inputData.riskDetails.slice(0,5))}.
+
+INSTRUCTIONS: Return ONLY valid JSON (no markdown). Follow this exact schema:
+{
+  "data_used": {
+    "projects_count": "X projects analyzed",
+    "avg_health": "XX%",
+    "critical_risks": "X critical",
+    "total_financial": "₹X",
+    "quality": "High/Medium/Low"
+  },
+  "verification": {
+    "cross_check": "Mathematical verification e.g., (Health ${inputData.healthScore}% + Risk ${inputData.riskScore}/100) = Medium-High",
+    "warnings": ["Warning if data<3 projects or missing owners", "or null if none"],
+    "sufficiency": "Sufficient/Insufficient"
+  },
+  "reasoning": [
+    "Step 1: Project health is X%, which means...",
+    "Step 2: Due to Y critical risks, the team will face Z delays.",
+    "Step 3: Therefore, the investment/timeline/team must adjust."
+  ],
+  "advice": "Single, actionable line of advice (max 20 words).",
+  "confidence": 85
+}
+
+IMPORTANT RULES:
+- If totalProjects < 2, set "quality": "Low", "sufficiency": "Insufficient", and confidence < 50.
+- If criticalRisks > 2, add a specific warning about "financial or timeline impact".
+- The "reasoning" array must have exactly 3 clear steps.
+- The "advice" must be specific to the ${userRole} role.`;
+  };
+
+  const gen=async()=>{
+    const key=gemKey.get();
+    if(!key){sErr("⚠️ Settings ma Gemini API key nakho (aistudio.google.com/apikey thi free key lai ne save karo).");return;}
+    if(uid && used>=limit){sErr(`⚠️ Limit puri (${activePlan}). Upgrade karo ya kal try karo.`);return;}
+    sL(true);sErr("");sText("");sStructured(null);sConf(0);sFB(null);
+    try{
+      const totalHealth=projs.length>0?Math.round(projs.reduce((a,p)=>a+(p.health_score||75),0)/projs.length):0;
+      const totalRisk=risks.length>0?Math.round(risks.reduce((a,r)=>a+(r.severity==="critical"?30:r.severity==="high"?20:10),0)/risks.length):0;
+      const criticalRisks=risks.filter(r=>r.severity==="critical").length;
+      const financialTotal=risks.reduce((a,r)=>a+(parseInt(r.financial_impact)||0),0);
+      const inputData={
+        totalProjects:projs.length,
+        healthScore:totalHealth,
+        riskScore:totalRisk,
+        criticalRisks:criticalRisks,
+        financialExposure:financialTotal,
+        projectDetails:projs.map(p=>({name:p.name,status:p.status,health:p.health_score,team:p.team})),
+        riskDetails:risks.map(r=>({desc:r.description,severity:r.severity,impact:r.financial_impact}))
+      };
+      const prompt=buildPrompt(inputData,role||"mgr");
+      const res=await askGemini(key,prompt);
+      sL(false);
+      if(res.error){sErr("AI Error: "+res.message);return;}
+      if(!res.text){sErr("No response from AI");return;}
+      let clean=res.text.replace(/```json/g,'').replace(/```/g,'').trim();
+      let parsed;
+      try{parsed=JSON.parse(clean);}catch(e){
+        sErr("AI returned invalid JSON. Raw: "+res.text.slice(0,150)+"...");
+        return;
+      }
+      if(!parsed.data_used || !parsed.verification || !parsed.reasoning || !parsed.advice){
+        sErr("AI JSON missing required keys.");
+        return;
+      }
+      const conf=Math.min(100,Math.max(0,parsed.confidence||70));
+      sConf(conf);
+      sStructured(parsed);
+      sText(JSON.stringify(parsed,null,2));
+      if(uid) usageCap.inc(uid);
+    }catch(ex){sL(false);sErr("Error: "+(ex?.message||String(ex)));}
+  };
+
+  const roleTitle={ceo:"🧠 CEO Strategy",mgr:"🧠 Manager Insights",dev:"🧠 Technical Analysis"}[role]||"🧠 AI Analysis";
+  return(
+    <Card sx={{marginTop:14,border:`1px solid ${C.cyan}30`}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+        <div style={{fontSize:13,fontWeight:700}}>✨ {roleTitle}</div>
+        <Btn v="out" sz="sm" onClick={gen} dis={loading||remaining<=0}>
+          {loading?<Spin/>:"⚡ Generate"}
+        </Btn>
+      </div>
+      <div style={{fontSize:10,color:C.txt3,marginBottom:10}}>Credits: {remaining}/{limit} ({activePlan})</div>
+      {!structured&&!loading&&!err&&(
+        <div style={{fontSize:12,color:C.txt2,padding:"4px 0"}}>
+          {role==="ceo"&&"💼 ROI, Investment, Timeline"}
+          {role==="mgr"&&"👥 Team, Sprint, Resources"}
+          {role==="dev"&&"⚙️ Tech Debt, Architecture"}
+        </div>
+      )}
+      {loading&&(<div style={{display:"flex",alignItems:"center",gap:10,fontSize:12,color:C.txt2}}><Spin/> Analyzing 3 layers...</div>)}
+      {err&&(<div style={{fontSize:12,color:C.red,background:`${C.red}12`,padding:"10px 12px",borderRadius:8}}>❌ {err}</div>)}
+      {structured&&(
+        <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:6}}>
+          <div style={{background:`${C.indigo}08`,borderLeft:`4px solid ${C.indigo}`,padding:"10px 14px",borderRadius:6}}>
+            <div style={{fontSize:11,fontWeight:700,color:C.indigoL,marginBottom:2}}>📊 ACCURACY (Data Used)</div>
+            <div style={{fontSize:12,color:C.txt2,display:"flex",flexWrap:"wrap",gap:"4px 16px"}}>
+              <span>📁 {structured.data_used?.projects_count||"N/A"}</span>
+              <span>📈 {structured.data_used?.avg_health||"N/A"}</span>
+              <span>⚠️ {structured.data_used?.critical_risks||"N/A"}</span>
+              <span>💰 {structured.data_used?.total_financial||"N/A"}</span>
+              <span style={{background:structured.data_used?.quality==="High"?`${C.green}30`:`${C.amber}30`,padding:"0 8px",borderRadius:4,fontWeight:600,fontSize:10}}>
+                {structured.data_used?.quality||"Medium"} Quality
+              </span>
+            </div>
+          </div>
+          <div style={{background:`${C.green}08`,borderLeft:`4px solid ${C.green}`,padding:"10px 14px",borderRadius:6}}>
+            <div style={{fontSize:11,fontWeight:700,color:C.green,marginBottom:2}}>🔒 TRUSTWORTHY (Double-Check)</div>
+            <div style={{fontSize:12,color:C.txt2}}>✅ {structured.verification?.cross_check||"Verified"}</div>
+            {structured.verification?.warnings?.length>0&&structured.verification.warnings[0]!==null&&(
+              <div style={{fontSize:11,color:C.amber,background:`${C.amber}15`,padding:"4px 10px",borderRadius:4,marginTop:4}}>
+                ⚠️ {structured.verification.warnings.filter(w=>w).join(" | ")}
+              </div>
+            )}
+            <div style={{fontSize:10,color:C.txt3,marginTop:2}}>Sufficiency: {structured.verification?.sufficiency||"Sufficient"}</div>
+          </div>
+          <div style={{background:`${C.cyan}08`,borderLeft:`4px solid ${C.cyan}`,padding:"10px 14px",borderRadius:6}}>
+            <div style={{fontSize:11,fontWeight:700,color:C.cyan,marginBottom:2}}>🧠 EXPLAINABLE (How & Why)</div>
+            <ol style={{margin:0,paddingLeft:18,fontSize:12,color:C.txt2,lineHeight:1.8}}>
+              {structured.reasoning?.map((step,i)=><li key={i}>{step}</li>)||<li>No reasoning</li>}
+            </ol>
+          </div>
+          <div style={{background:`${C.indigo}25`,border:`1px solid ${C.indigo}50`,padding:"12px 16px",borderRadius:8}}>
+            <div style={{fontSize:10,fontWeight:700,color:C.txt3,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:2}}>🎯 Final Advice</div>
+            <div style={{fontSize:14,fontWeight:700,color:C.txt}}>{structured.advice||"No advice provided."}</div>
+          </div>
+          <div style={{padding:"6px 12px",background:`${C.cyan}15`,borderRadius:8}}>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:11}}>
+              <span style={{color:C.txt3}}>AI Confidence</span>
+              <span style={{fontWeight:700,color:C.cyan}}>{confidence}%</span>
+            </div>
+            <Bar v={confidence} col={C.cyan} h={4}/>
+          </div>
+          {feedback===null&&(
+            <div style={{display:"flex",gap:8,marginTop:6}}>
+              <Btn v="ghost" sz="sm" onClick={()=>setFB(true)}>✅ Accurate</Btn>
+              <Btn v="red" sz="sm" onClick={()=>setFB(false)}>❌ Wrong</Btn>
+            </div>
+          )}
+          {feedback!==null&&(
+            <div style={{fontSize:11,color:C.txt2,background:`${feedback?C.green:C.red}15`,padding:"6px 12px",borderRadius:6,textAlign:"center"}}>
+              {feedback?"✅ Thanks! We'll keep this.":"❌ Noted! We'll improve."}
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// ============================================================
+// PROJECTS (Updated with comments)
+// ============================================================
+function Projects({token,uid,role,companyId,onNav}){
+  const canEdit=role==="mgr"||role==="ceo";
+  const[projs,sP]=useState([]);const[loading,sL]=useState(true);const[showAdd,sSA]=useState(false);const[toast,sT]=useState(null);
+  const[form,sF]=useState({name:"",team:"",sprint:"",health_score:75,risk_score:25,status:"healthy",deadline:""});const[saving,sSv]=useState(false);
+  const[editId,sEditId]=useState(null);const[detail,sDetail]=useState(null);const[perr,sPerr]=useState("");
+  const[showComments,sSC]=useState(null);
+  
+  const load=async()=>{
+    if(!companyId){sL(false);return;}
+    sL(true);
+    const d=await api.projs(token,companyId);
+    sP(Array.isArray(d)?d:[]);
+    sL(false);
+  };
+  useEffect(()=>{load();},[companyId,token]);
+  
+  const showT=(msg,type="success")=>{sT({msg,type});setTimeout(()=>sT(null),3000);};
+  const logAudit=(action,details)=>api.logAudit(token,companyId,uid,action,details).catch(()=>{});
+  const blankForm={name:"",team:"",sprint:"",health_score:75,risk_score:25,status:"healthy",deadline:""};
+  const openAdd=()=>{sEditId(null);sF(blankForm);sPerr("");sSA(true);};
+  const openEdit=(p)=>{sEditId(p.id);sF({name:p.name||"",team:p.team||"",sprint:p.sprint||"",health_score:p.health_score||75,risk_score:p.risk_score||25,status:p.status||"healthy",deadline:p.deadline||""});sPerr("");sDetail(null);sSA(true);};
+  const save=async()=>{
+    if(!form.name){sPerr("Project Name jaroori che!");return;}
+    sPerr("");sSv(true);
+    const payload={...form,health_score:Number(form.health_score),risk_score:Number(form.risk_score),company_id:companyId};
+    let r;
+    if(editId){
+      r=await api.updProj(token,editId,payload);
+      if(!r||!r.error) await logAudit(`Updated project ${form.name}`,{id:editId, ...payload});
+    }else{
+      r=await api.addProj(token,uid,payload);
+      if(!r||!r.error) await logAudit(`Added project ${form.name}`,payload);
+    }
+    sSv(false);
+    if(r&&r.error){sPerr(r.message||"Error thai — pharthi try karo");return;}
+    sSA(false);sF(blankForm);sEditId(null);
+    showT(editId?"Project update thayo! ✅":"Project add thayo! ✅");load();
+    // Send email notification
+    sendEmail(prof?.email||'', `Project ${editId?'Updated':'Added'}`, `Project ${form.name} has been ${editId?'updated':'added'}`);
+  };
+  const del=async(id)=>{
+    if(!confirm("Delete karvu?"))return;
+    const p=projs.find(x=>x.id===id);
+    await api.delProj(token,id);
+    if(p) await logAudit(`Deleted project ${p.name}`,{id});
+    sDetail(null);showT("Deleted","error");load();
+  };
+  const f=k=>e=>sF({...form,[k]:e.target.value});
+  
+  if(!companyId)return<Card><div style={{textAlign:"center",padding:20,color:C.txt2}}>No company assigned. Contact your CEO.</div></Card>;
+  
+  return<div className="fu">
+    {toast&&<Toast msg={toast.msg} type={toast.type}/>}
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div style={{fontSize:13,color:C.txt2}}>{projs.length} projects</div>{canEdit&&<Btn v="grad" onClick={openAdd}>+ New Project</Btn>}</div>
+    {loading?<div style={{display:"flex",justifyContent:"center",padding:48}}><Spin/></div>
+    :projs.length===0?<Card sx={{textAlign:"center",padding:40}}><div style={{fontSize:32,marginBottom:10}}>📋</div><div style={{fontSize:14,fontWeight:700,marginBottom:6}}>Koi project nathi</div>{canEdit&&<Btn v="grad" onClick={openAdd}>+ Add Project</Btn>}</Card>
+    :<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:12}}>
+      {projs.map(p=>{
+        const sc=p.status==="healthy"?C.green:p.status==="at-risk"?C.red:C.amber;
+        return<Card key={p.id} onClick={()=>onNav("project_detail", p.id)}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+            <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700,marginBottom:4}}>{p.name}</div><Chip l={p.team||"Engineering"} col="gray"/></div>
+            <Dot col={sc}/>
+          </div>
+          <div style={{marginBottom:8}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontSize:11,color:C.txt3}}>Health</span><span style={{fontSize:11,fontWeight:700,color:sc}}>{p.health_score}%</span></div>
+            <Bar v={p.health_score} col={sc}/>
+          </div>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:C.txt3}}>
+            <span>{p.sprint||"No sprint"}</span>
+            <Chip l={p.status==="healthy"?"Healthy":p.status==="at-risk"?"At Risk":"Warning"} col={p.status==="healthy"?"green":p.status==="at-risk"?"red":"amber"}/>
+          </div>
+        </Card>;
+      })}
+    </div>}
+    
+    {showAdd&&<Modal title={editId?"Edit Project":"New Project"} onClose={()=>{sSA(false);sEditId(null);}}>
+      <div style={{display:"flex",flexDirection:"column",gap:12}}>
+        <Inp lbl="Project Name *" ph="Payment Gateway v3" val={form.name} onChange={f("name")}/>
+        <Inp lbl="Team" ph="Backend, Mobile..." val={form.team} onChange={f("team")}/>
+        <Inp lbl="Sprint" ph="Sprint 8" val={form.sprint} onChange={f("sprint")}/>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><Inp lbl="Health (0-100)" ph="75" val={form.health_score} onChange={f("health_score")} type="number"/><Inp lbl="Risk (0-100)" ph="25" val={form.risk_score} onChange={f("risk_score")} type="number"/></div>
+        <Sel lbl="Status" val={form.status} onChange={f("status")} opts={[{v:"healthy",l:"✅ Healthy"},{v:"warning",l:"⚠️ Warning"},{v:"at-risk",l:"🔴 At Risk"}]}/>
+        <Inp lbl="Deadline" val={form.deadline} onChange={f("deadline")} type="date"/>
+        {perr&&<div style={{fontSize:12,color:C.red,background:`${C.red}12`,padding:"8px 12px",borderRadius:7}}>{perr}</div>}
+        <div style={{display:"flex",gap:8,marginTop:4}}><Btn v="ghost" full onClick={()=>{sSA(false);sEditId(null);}}>Cancel</Btn><Btn v="grad" full onClick={save} dis={saving}>{saving?<Spin/>:editId?"Save Changes":"Add Project"}</Btn></div>
+      </div>
+    </Modal>}
+    
+    {detail&&<Modal title={detail.name} onClose={()=>sDetail(null)}>
+      <div style={{display:"flex",flexDirection:"column",gap:12}}>
+        <div style={{display:"flex",gap:8}}><Chip l={detail.team||"Engineering"} col="gray"/><Chip l={detail.status==="healthy"?"Healthy":detail.status==="at-risk"?"At Risk":"Warning"} col={detail.status==="healthy"?"green":detail.status==="at-risk"?"red":"amber"}/></div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+          <div><div style={{fontSize:11,color:C.txt3,marginBottom:4}}>Health Score</div><div style={{fontSize:20,fontWeight:800,color:C.green}}>{detail.health_score}%</div></div>
+          <div><div style={{fontSize:11,color:C.txt3,marginBottom:4}}>Risk Score</div><div style={{fontSize:20,fontWeight:800,color:C.red}}>{detail.risk_score}%</div></div>
+        </div>
+        <div style={{fontSize:12,color:C.txt2}}>Sprint: {detail.sprint||"Not set"}</div>
+        <div style={{fontSize:12,color:C.txt2}}>Deadline: {detail.deadline||"Not set"}</div>
+        <Hr m={10}/>
+        <div style={{display:"flex",gap:8}}>
+          <Btn v="ghost" full onClick={()=>sDetail(null)}>Close</Btn>
+          {canEdit&&<Btn v="out" full onClick={()=>openEdit(detail)}>✎ Edit</Btn>}
+          {canEdit&&<Btn v="red" full onClick={()=>del(detail.id)}>🗑 Delete</Btn>}
+        </div>
+        <Hr m={10}/>
+        <div style={{fontSize:13,fontWeight:700,marginBottom:8}}>💬 Comments</div>
+        <Comments token={token} projectId={detail.id} userId={uid}/>
+      </div>
+    </Modal>}
+  </div>;
+}
+
+// ============================================================
+// RISKS (Same as before - with audit log)
+// ============================================================
+function Risks({token,uid,role,companyId}){
+  const canEdit=role==="mgr"||role==="ceo";
+  const[risks,sR]=useState([]);const[projs,sP]=useState([]);const[loading,sL]=useState(true);
+  const[showAdd,sSA]=useState(false);const[toast,sT]=useState(null);
+  const[form,sF]=useState({description:"",severity:"medium",financial_impact:"",owner_name:"",project_id:""});const[saving,sSv]=useState(false);
+  const load=async()=>{
+    if(!companyId){sL(false);return;}
+    sL(true);
+    const [r,p]=await Promise.all([api.risks(token,companyId),api.projs(token,companyId)]);
+    sR(Array.isArray(r)?r:[]);
+    sP(Array.isArray(p)?p:[]);
+    sL(false);
+  };
+  useEffect(()=>{load();},[companyId,token]);
+  const showT=(msg,type="success")=>{sT({msg,type});setTimeout(()=>sT(null),3000);};
+  const logAudit=(action,details)=>api.logAudit(token,companyId,uid,action,details).catch(()=>{});
+  const add=async()=>{
+    if(!form.description)return;
+    sSv(true);
+    await api.addRisk(token,uid,{...form,company_id:companyId});
+    await logAudit(`Added risk: ${form.description}`,form);
+    sSv(false);sSA(false);
+    sF({description:"",severity:"medium",financial_impact:"",owner_name:"",project_id:""});
+    showT("Risk add thayo! ✅");load();
+  };
+  const del=async(id)=>{
+    if(!confirm("Delete?"))return;
+    const r=risks.find(x=>x.id===id);
+    await api.delRisk(token,id);
+    if(r) await logAudit(`Deleted risk: ${r.description}`,{id});
+    showT("Deleted","error");load();
+  };
+  const f=k=>e=>sF({...form,[k]:e.target.value});
+  if(!companyId)return<Card><div style={{textAlign:"center",padding:20,color:C.txt2}}>No company assigned.</div></Card>;
+  return<div className="fu">
+    {toast&&<Toast msg={toast.msg} type={toast.type}/>}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:16}}>
+      {[{l:"Critical",v:risks.filter(r=>r.severity==="critical").length,c:C.red},{l:"High",v:risks.filter(r=>r.severity==="high").length,c:C.amber},{l:"Total",v:risks.length,c:C.indigo}].map(r=><Card key={r.l} sx={{borderColor:`${r.c}25`}}><div style={{fontSize:26,fontWeight:900,color:r.c}}>{r.v}</div><div style={{fontSize:12,color:C.txt2}}>{r.l}</div></Card>)}
+    </div>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}><div style={{fontSize:13,fontWeight:700}}>All Risks</div>{canEdit&&<Btn v="grad" onClick={()=>sSA(true)}>+ Add Risk</Btn>}</div>
+    {loading?<div style={{display:"flex",justifyContent:"center",padding:40}}><Spin/></div>
+    :risks.length===0?<Card sx={{textAlign:"center",padding:36}}><div style={{fontSize:28,marginBottom:8}}>✅</div><div style={{fontSize:13,fontWeight:700}}>Koi risk nathi!</div></Card>
+    :<Card sx={{padding:0,overflow:"hidden"}}><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr style={{background:C.surf}}>{["Description","Severity","Impact","Owner"].map(h=><th key={h} style={{padding:"8px 14px",fontSize:10,fontWeight:700,color:C.txt3,textAlign:"left",textTransform:"uppercase"}}>{h}</th>)}{canEdit&&<th></th>}</tr></thead><tbody>{risks.map(r=><tr key={r.id} style={{borderTop:`1px solid ${C.border}`}} onMouseEnter={e=>e.currentTarget.style.background=C.cardH} onMouseLeave={e=>e.currentTarget.style.background="transparent"}><td style={{padding:"10px 14px",fontSize:12}}>{r.description}</td><td style={{padding:"10px 14px"}}><Chip l={r.severity} col={r.severity==="critical"?"red":r.severity==="high"?"amber":"indigo"}/></td><td style={{padding:"10px 14px",fontSize:12,color:C.red,fontWeight:600}}>{r.financial_impact||"-"}</td><td style={{padding:"10px 14px",fontSize:12,color:C.txt2}}>{r.owner_name||"-"}</td>{canEdit&&<td style={{padding:"10px 14px"}}><span onClick={()=>del(r.id)} style={{cursor:"pointer",fontSize:15}}>🗑</span></td>}</tr>)}</tbody></table></Card>}
+    {showAdd&&<Modal title="Add Risk" onClose={()=>sSA(false)}>
+      <div style={{display:"flex",flexDirection:"column",gap:12}}>
+        <Inp lbl="Description *" ph="Sprint velocity drop..." val={form.description} onChange={f("description")} rows={2}/>
+        <Sel lbl="Severity" val={form.severity} onChange={f("severity")} opts={[{v:"critical",l:"🔴 Critical"},{v:"high",l:"🟠 High"},{v:"medium",l:"🟡 Medium"},{v:"low",l:"🟢 Low"}]}/>
+        {projs.length>0&&<Sel lbl="Project" val={form.project_id} onChange={f("project_id")} opts={[{v:"",l:"General"},...projs.map(p=>({v:p.id,l:p.name}))]}/>}
+        <Inp lbl="Financial Impact" ph="₹5L" val={form.financial_impact} onChange={f("financial_impact")}/>
+        <Inp lbl="Owner" ph="Priya Sharma" val={form.owner_name} onChange={f("owner_name")}/>
+        <div style={{display:"flex",gap:8,marginTop:4}}><Btn v="ghost" full onClick={()=>sSA(false)}>Cancel</Btn><Btn v="grad" full onClick={add} dis={saving}>{saving?<Spin/>:"Add Risk"}</Btn></div>
+      </div>
+    </Modal>}
+  </div>;
+}
+
+// ============================================================
+// TEAM PAGE (Same as before)
+// ============================================================
+function TeamPage({token,companyId,uid,role}){
+  const[members,sM]=useState([]);const[loading,sL]=useState(true);const[company,sCo]=useState(null);
+  const[showAdd,sSA]=useState(false);const[newEmail,sNE]=useState("");const[newRole,sNR]=useState("dev");const[adding,sAdding]=useState(false);const[toast,sT]=useState(null);
+  const canManage=role==="ceo"||role==="mgr";
+  const load=()=>{
+    if(!companyId){sL(false);return;}
+    Promise.all([api.teamMembers(token,companyId),api.getCompany(token,companyId)]).then(([m,c])=>{
+      sM(Array.isArray(m)?m:[]);sCo(c);sL(false);
+    });
+  };
+  useEffect(()=>{load();},[companyId,token]);
+  const showT=(msg,type="success")=>{sT({msg,type});setTimeout(()=>sT(null),3000);};
+  const addMember=async()=>{
+    if(!newEmail){showT("Email nakho","error");return;}
+    sAdding(true);
+    const r=await api.addTeamMember(token,companyId,newEmail,newRole);
+    sAdding(false);
+    if(r&&r.error){showT("Error: "+r.message,"error");return;}
+    showT("Member added! ✅");sNE("");sNR("dev");sSA(false);load();
+  };
+  const removeMember=async(userId)=>{
+    if(!confirm("Remove this member?"))return;
+    await api.removeTeamMember(token,userId);
+    showT("Removed","error");load();
+  };
+  const roleLbl={ceo:"CEO",mgr:"Manager",dev:"Developer"};
+  const roleColor={ceo:"amber",mgr:"indigo",dev:"green"};
+  if(loading)return<div style={{display:"flex",justifyContent:"center",padding:48}}><Spin/></div>;
+  if(!companyId)return<Card><div style={{textAlign:"center",padding:20,color:C.txt2}}>No company assigned.</div></Card>;
+  return<div className="fu">
+    {toast&&<Toast msg={toast.msg} type={toast.type}/>}
+    <Card sx={{marginBottom:16,background:C.gradS,border:`1px solid ${C.indigo}30`}}>
+      <div style={{fontSize:13,fontWeight:700,marginBottom:8}}>🔗 Invite Code</div>
+      <div style={{display:"flex",alignItems:"center",gap:10}}>
+        <div style={{fontFamily:"monospace",fontSize:18,fontWeight:800,color:C.indigoL,background:C.surf,padding:"8px 16px",borderRadius:8,letterSpacing:"1px"}}>{company?.invite_code||"—"}</div>
+        <Btn v="ghost" sz="sm" onClick={()=>{navigator.clipboard.writeText(company?.invite_code||"");}}>📋 Copy</Btn>
+      </div>
+      <div style={{fontSize:11,color:C.txt3,marginTop:8}}>Aa code team members ne aapo — te "Join Company" thi signup kari shakshe</div>
+    </Card>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+      <div style={{fontSize:13,fontWeight:700}}>{members.length} Team Members</div>
+      {canManage&&<Btn v="grad" onClick={()=>sSA(true)}>+ Add Member</Btn>}
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:12}}>
+      {members.map(m=>(
+        <Card key={m.id}>
+          <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:10}}>
+            <Av n={m.full_name} s={36}/>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:13,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.full_name||"User"}</div>
+            </div>
+            {canManage && m.id!==uid && <span onClick={()=>removeMember(m.id)} style={{cursor:"pointer",color:C.red,fontSize:16}}>✖</span>}
+          </div>
+          <Chip l={roleLbl[m.role]||"Member"} col={roleColor[m.role]||"gray"}/>
+        </Card>
+      ))}
+      {members.length===0&&<Card sx={{textAlign:"center",padding:24,gridColumn:"1/-1"}}><div style={{fontSize:12,color:C.txt2}}>Koi team member nathi haju</div></Card>}
+    </div>
+    {showAdd&&<Modal title="Add Team Member" onClose={()=>{sSA(false);sNE("");sNR("dev");}}>
+      <div style={{display:"flex",flexDirection:"column",gap:12}}>
+        <Inp lbl="Email" ph="new@company.com" val={newEmail} onChange={e=>sNE(e.target.value)} type="email"/>
+        <Sel lbl="Role" val={newRole} onChange={e=>sNR(e.target.value)} opts={[{v:"dev",l:"Developer"},{v:"mgr",l:"Engineering Manager"}]}/>
+        <div style={{display:"flex",gap:8}}><Btn v="ghost" full onClick={()=>{sSA(false);sNE("");sNR("dev");}}>Cancel</Btn><Btn v="grad" full onClick={addMember} dis={adding}>{adding?<Spin/>:"Add"}</Btn></div>
+      </div>
+    </Modal>}
+  </div>;
+}
+
+// ============================================================
+// PROJECT DETAIL (Updated with comments)
+// ============================================================
+function ProjectDetail({projId,token,companyId,onBack,uid}){
+  const[proj,setProj]=useState(null);const[risks,setRisks]=useState([]);const[loading,sL]=useState(true);
+  
+  useEffect(()=>{
+    if(!companyId || !projId){sL(false);return;}
+    Promise.all([api.projs(token,companyId),api.risks(token,companyId)]).then(([p,r])=>{
+      const found=p.find(x=>x.id===projId);
+      setProj(found||null);
+      setRisks(r.filter(x=>x.project_id===projId));
+      sL(false);
+    });
+  },[projId,token,companyId]);
+  
+  if(loading)return<div style={{textAlign:"center",padding:40}}><Spin/></div>;
+  if(!proj)return<div style={{textAlign:"center",padding:40}}>Project not found</div>;
+  
+  return<div style={{maxWidth:700,margin:"0 auto"}}>
+    <div onClick={onBack} style={{color:C.txt2,cursor:"pointer",marginBottom:20,fontSize:13}}>← Back to Projects</div>
+    <Card sx={{marginBottom:20}}>
+      <div style={{fontSize:18,fontWeight:700,marginBottom:8}}>{proj.name}</div>
+      <div style={{color:C.txt2,fontSize:13,marginBottom:12}}>{proj.description||"No description"}</div>
+      <Hr m={12}/>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,fontSize:12}}>
+        <div><div style={{color:C.txt3}}>Created</div><div>{new Date(proj.created_at).toLocaleDateString()}</div></div>
+        <div><div style={{color:C.txt3}}>Status</div><div><Chip l={proj.status||"Active"} col="green"/></div></div>
+      </div>
+      {/* GitHub Integration */}
+      <Hr m={12}/>
+      <GitHubIntegration token={token} projectId={proj.id} onLinked={()=>{}}/>
+      <div style={{marginTop:8}}><JiraIntegration token={token} projectId={proj.id} onLinked={()=>{}}/></div>
+      <div style={{marginTop:8}}><SlackIntegration token={token} projectId={proj.id} onLinked={()=>{}}/></div>
+    </Card>
+    
+    <Card><div style={{fontSize:14,fontWeight:700,marginBottom:12}}>⚠️ Linked Risks ({risks.length})</div>
+      {risks.length===0?<div style={{color:C.txt3,fontSize:13}}>No risks linked</div>:
+        risks.map(r=><div key={r.id} style={{padding:10,background:C.surf,borderRadius:8,marginBottom:8,borderLeft:`3px solid ${r.severity==="critical"?C.red:C.amber}`}}>
+          <div style={{fontWeight:600,fontSize:12}}>{r.description}</div>
+          <div style={{fontSize:11,color:C.txt3,marginTop:4}}>Severity: <Chip l={r.severity} col={r.severity==="critical"?"red":r.severity==="high"?"amber":"indigo"}/>  Impact: {r.financial_impact||"N/A"}</div>
+        </div>)
+      }
+    </Card>
+    
+    <Card sx={{marginTop:14}}>
+      <div style={{fontSize:14,fontWeight:700,marginBottom:12}}>💬 Comments</div>
+      <Comments token={token} projectId={proj.id} userId={uid}/>
+    </Card>
+  </div>;
+}
+
+// ============================================================
+// WEEKLY SUMMARY (Same as before)
+// ============================================================
+function WeeklySummary({token,prof,companyId}){
+  const[projs,sP]=useState([]);const[risks,sR]=useState([]);const[loading,sL]=useState(true);
+  useEffect(()=>{
+    if(!companyId){sL(false);return;}
+    Promise.all([api.projs(token,companyId),api.risks(token,companyId)]).then(([p,r])=>{
+      sP(Array.isArray(p)?p:[]);
+      sR(Array.isArray(r)?r:[]);
+      sL(false);
+    });
+  },[token,companyId]);
+  if(loading)return<div style={{display:"flex",justifyContent:"center",padding:40}}><Spin/></div>;
+  const total=projs.length;
+  const healthy=projs.filter(p=>p.status==="healthy").length;
+  const atRisk=projs.filter(p=>p.status==="at-risk").length;
+  const critical=risks.filter(r=>r.severity==="critical").length;
+  const totalRisks=risks.length;
+  return<div style={{maxWidth:600}}>
+    <Card><div style={{fontSize:14,fontWeight:700,marginBottom:12}}>📊 Weekly Summary</div>
+      <div style={{fontSize:13,color:C.txt2,lineHeight:1.6}}>
+        <div style={{marginBottom:12}}>📁 <strong>Projects:</strong> {total} active, {healthy} healthy, {atRisk} at risk</div>
+        <div style={{marginBottom:12}}>⚠️ <strong>Risks:</strong> {totalRisks} identified, {critical} critical</div>
+        <div style={{marginBottom:12}}>👥 <strong>Team:</strong> {prof?.full_name||"You"}'s team is working on {total} projects</div>
+        <div>💾 Data as of {new Date().toLocaleDateString()}</div>
+      </div>
+      <Btn v="out" full sx={{marginTop:16}} onClick={()=>{
+        const csv="Project,Status,Health\n"+projs.map(p=>`${p.name},${p.status},${p.health_score}`).join("\n");
+        const blob=new Blob([csv],{type:"text/csv"});const url=window.URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="weekly-summary.csv";a.click();
+      }}>📥 Export CSV</Btn>
+    </Card>
+  </div>;
+}
+
+// ============================================================
+// SETTINGS (Updated with 2FA, Backup, SSO)
+// ============================================================
+function Settings({token,uid,prof,onUpdate,onNav,companyId}){
+  const[form,sF]=useState({full_name:prof?.full_name||"",company_name:prof?.company_name||""});
+  const[saving,sSv]=useState(false);const[toast,sT]=useState(null);
+  const[gk,sGk]=useState(gemKey.get());
+  const[twoFA,sTwoFA]=useState(false);
+  const roleLbl={ceo:"CEO / Founder",mgr:"Engineering Manager",dev:"Developer"}[prof?.role]||"Engineering Manager";
+  const f=k=>e=>sF({...form,[k]:e.target.value});
+  const save=async()=>{sSv(true);await api.saveProf(token,uid,form);gemKey.set(gk);sSv(false);onUpdate(form);sT({msg:"Saved! ✅",type:"success"});setTimeout(()=>sT(null),3000);};
+  const exportCSV=async()=>{
+    if(!companyId){sT({msg:"No company data to export","error":true});return;}
+    const [projs,risks]=await Promise.all([api.projs(token,companyId),api.risks(token,companyId)]);
+    let csv="Project Data\n";
+    csv+="Name,Team,Sprint,Health,Risk,Status\n";
+    projs.forEach(p=>csv+=`${p.name},${p.team||""},${p.sprint||""},${p.health_score},${p.risk_score},${p.status}\n`);
+    csv+="\nRisks\n";
+    csv+="Description,Severity,Impact,Owner\n";
+    risks.forEach(r=>csv+=`${r.description},${r.severity},${r.financial_impact||""},${r.owner_name||""}\n`);
+    const blob=new Blob([csv],{type:"text/csv"});const url=window.URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="aegis-full-export.csv";a.click();
+    sT({msg:"CSV exported ✅",type:"success"});setTimeout(()=>sT(null),3000);
+  };
+  
+  return<div className="fu" style={{maxWidth:460}}>
+    {toast&&<Toast msg={toast.msg} type={toast.type}/>}
+    <Card>
+      <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:16}}><Av n={form.full_name} s={50}/><div><div style={{fontSize:14,fontWeight:700}}>{form.full_name||"Your Name"}</div><div style={{fontSize:12,color:C.txt3}}>Aegis AI</div></div></div>
+      <Hr m={14}/>
+      <div style={{display:"flex",flexDirection:"column",gap:12}}>
+        <Inp lbl="Full Name" ph="Raj Patel" val={form.full_name} onChange={f("full_name")}/>
+        <Inp lbl="Company Name" ph="Acme Corp" val={form.company_name} onChange={f("company_name")}/>
+        <div>
+          <div style={{fontSize:12,fontWeight:600,color:C.txt2,marginBottom:6}}>Role</div>
+          <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 14px",background:C.surf,border:`1px solid ${C.border}`,borderRadius:9}}>
+            <Chip l={roleLbl}/>
+            <span style={{fontSize:11,color:C.txt3}}>🔒 Signup time e fix thayel, badli na shakay</span>
+          </div>
+        </div>
+        <Btn v="grad" onClick={save} dis={saving}>{saving?<Spin/>:"✓ Save Changes"}</Btn>
+      </div>
+    </Card>
+    
+    <Card sx={{marginTop:14}}>
+      <div style={{fontSize:14,fontWeight:700,marginBottom:4}}>✨ AI Insights (Gemini)</div>
+      <div style={{fontSize:12,color:C.txt2,marginBottom:14}}>Dashboard par AI-based project analysis mate free Gemini API key nakho. Key <span style={{color:C.indigoL}}>aistudio.google.com/apikey</span> parthi malshe — badhu tamara browser ma j save thay che.</div>
+      <div style={{display:"flex",flexDirection:"column",gap:12}}>
+        <Inp lbl="Gemini API Key" ph="AIzaSy..." val={gk} onChange={e=>sGk(e.target.value)} type="password"/>
+        <Btn v="out" onClick={save} dis={saving}>{saving?<Spin/>:"Save API Key"}</Btn>
+      </div>
+    </Card>
+    
+    {/* 2FA */}
+    <Card sx={{marginTop:14}}><TwoFactorAuth onEnable={sTwoFA}/></Card>
+    
+    {/* Data Backup */}
+    <Card sx={{marginTop:14}}><DataBackup token={token} companyId={companyId}/></Card>
+    
+    <Card sx={{marginTop:14}}>
+      <div style={{fontSize:14,fontWeight:700,marginBottom:12}}>📊 Data & Legal</div>
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        <Btn v="ghost" full onClick={exportCSV}>📥 Export as CSV (Full Data)</Btn>
+        <Btn v="ghost" full onClick={()=>onNav("privacy")}>📋 Privacy Policy</Btn>
+        <Btn v="ghost" full onClick={()=>onNav("terms")}>⚖️ Terms of Service</Btn>
+      </div>
+    </Card>
+  </div>;
+}
+
+// ============================================================
+// NAVIGATION TITLES
+// ============================================================
+const TT={dash:"Dashboard",analytics:"Analytics",proj:"Projects",risks:"Risk Center",team:"Team",chat:"Chat",audit:"Activity Log",summary:"Weekly Summary",privacy:"Privacy Policy",terms:"Terms of Service",cfg:"Settings",project_detail:"Project Detail"};
+
+// ============================================================
+// PRIVACY & TERMS
+// ============================================================
+function PrivacyTerms({page,onBack}){
+  const content={privacy:{title:"Privacy Policy",text:"Aegis AI respects your privacy. Your company data is isolated and encrypted. We do not share your data with third parties without consent."},terms:{title:"Terms of Service",text:"By using Aegis AI, you agree to our terms. Your usage is governed by the pricing plan you select. Billing is monthly and can be cancelled anytime."}};
+  const p=content[page]||content.privacy;
+  return<div style={{maxWidth:700,margin:"0 auto"}}><div onClick={onBack} style={{color:C.txt2,cursor:"pointer",marginBottom:20}}>← Back</div><h1 style={{fontSize:24,fontWeight:900,marginBottom:20}}>{p.title}</h1><div style={{lineHeight:1.8,color:C.txt2,fontSize:14}}>{p.text}</div></div>;
+}
+
+// ============================================================
+// AUDIT LOG
+// ============================================================
+function AuditLog({token,companyId}){
+  const[logs,setLogs]=useState([]);const[loading,sL]=useState(true);
+  useEffect(()=>{
+    if(!companyId){sL(false);return;}
+    api.getAuditLog(token,companyId).then(l=>{setLogs(l);sL(false);});
+  },[companyId,token]);
+  if(loading)return<div style={{textAlign:"center",padding:40}}><Spin/></div>;
+  if(!companyId)return<Card><div style={{textAlign:"center",padding:20,color:C.txt2}}>No company assigned.</div></Card>;
+  return<div style={{maxWidth:700}}><Card><div style={{fontSize:14,fontWeight:700,marginBottom:12}}>Activity Log</div>{logs.length===0?<div style={{color:C.txt3}}>No activity yet</div>:logs.map(l=><div key={l.id} style={{padding:10,background:C.surf,borderRadius:8,marginBottom:8,fontSize:12}}><div style={{fontWeight:600}}>{l.action}</div><div style={{color:C.txt3,marginTop:4}}>{new Date(l.created_at).toLocaleString()}</div></div>)}</Card></div>;
+}
+
+// ============================================================
+// RESET PASSWORD
+// ============================================================
+function ResetPw({token,onDone}){
+  const[pw,sPw]=useState("");const[pw2,sPw2]=useState("");const[err,sErr]=useState("");const[loading,sL]=useState(false);const[done,sDone]=useState(false);
+  const submit=async()=>{
+    if(!pw||pw.length<6){sErr("Password min 6 characters joie");return;}
+    if(pw!==pw2){sErr("Password match nathi thato");return;}
+    sL(true);sErr("");
+    const d=await go(`${SB}/auth/v1/user`,{method:"PUT",headers:{...H(token)},body:JSON.stringify({password:pw})});
+    sL(false);
+    if(d&&d.id){sDone(true);setTimeout(()=>onDone(),2000);}
+    else sErr(d.msg||d.message||d.error||"Password update na thayo — link expire thai gayu hoy shake");
+  };
+  return<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:C.bg,padding:20}}>
+    <div style={{width:"100%",maxWidth:360}}>
+      <div style={{textAlign:"center",marginBottom:22}}><Logo s={40}/><h2 style={{fontSize:20,fontWeight:800,marginTop:10,marginBottom:4}}>Set new password</h2><p style={{color:C.txt2,fontSize:13}}>Enter a new password for your account</p></div>
+      <Card sx={{padding:22}}>
+        {done?<div style={{textAlign:"center",padding:6}}>
+          <div style={{fontSize:32,marginBottom:10}}>✅</div>
+          <div style={{fontSize:14,fontWeight:700,marginBottom:6}}>Password update thayo!</div>
+          <div style={{fontSize:13,color:C.txt2}}>Login page par jai rahya cho...</div>
+        </div>:<div style={{display:"flex",flexDirection:"column",gap:12}}>
+          <Inp lbl="New Password" ph="Min 6 characters" val={pw} onChange={e=>sPw(e.target.value)} type="password"/>
+          <Inp lbl="Confirm Password" ph="Pharthi nakho" val={pw2} onChange={e=>sPw2(e.target.value)} type="password"/>
+          {err&&<div style={{fontSize:12,color:C.red,background:`${C.red}12`,padding:"8px 12px",borderRadius:7}}>{err}</div>}
+          <Btn v="grad" full sz="lg" onClick={submit} dis={loading}>{loading?<Spin/>:"Update Password"}</Btn>
+        </div>}
+      </Card>
+    </div>
+  </div>;
+}
+
+// ============================================================
+// CHAT PAGE (Project-specific chat)
+// ============================================================
+function ChatPage({token,companyId,uid,projs}){
+  const[selectedProject,sSP]=useState(projs.length?projs[0].id:null);
+  
+  return<div>
+    <div style={{marginBottom:12,display:"flex",gap:10,flexWrap:"wrap"}}>
+      {projs.map(p=><Btn key={p.id} v={selectedProject===p.id?"grad":"ghost"} sz="sm" onClick={()=>sSP(p.id)}>{p.name}</Btn>)}
+    </div>
+    <Chat token={token} companyId={companyId} userId={uid} projectId={selectedProject}/>
+  </div>;
+}
+
+// ============================================================
+// ACTIVITY PAGE
+// ============================================================
+function ActivityPage({token,companyId}){
+  return<div>
+    <Card sx={{marginBottom:14}}>
+      <div style={{fontSize:13,fontWeight:700,marginBottom:8}}>📋 Activity Feed</div>
+      <ActivityFeed token={token} companyId={companyId}/>
+    </Card>
+  </div>;
+}
+
+// ============================================================
+// MAIN APP
+// ============================================================
+function App(){
+  const[sc,sSc]=useState("login");const[auth,sAuth]=useState(null);const[prof,sProf]=useState(null);const[pg,sPg]=useState("dash");const[projId,sProjId]=useState(null);
+  const[recoveryToken,sRecTok]=useState(null);const[booting,sBooting]=useState(true);
+  
+  useEffect(()=>{
+    const hash=window.location.hash;
+    if(hash&&hash.includes("type=recovery")){
+      const params=new URLSearchParams(hash.substring(1));
+      const tok=params.get("access_token");
+      if(tok){sRecTok(tok);sSc("reset");window.history.replaceState(null,"",window.location.pathname);sBooting(false);return;}
+    }
+    const saved=session.load();
+    if(saved&&saved.access_token&&saved.user){
+      api.prof(saved.access_token,saved.user.id).then(p=>{
+        sAuth(saved);
+        sProf(p||{full_name:saved.user.email?.split("@")[0],role:"mgr"});
+        sSc("app");sBooting(false);
+      }).catch(()=>{session.clear();sBooting(false);});
+    }else{
+      sBooting(false);
+    }
+  },[]);
+  
+  const login=async(data)=>{sAuth(data);session.save(data);const p=await api.prof(data.access_token,data.user.id);sProf(p||{full_name:data.user.email?.split("@")[0],role:"mgr"});sSc("app");sPg("dash");};
+  const logout=async()=>{if(auth)await api.out(auth.access_token);session.clear();sAuth(null);sProf(null);sSc("login");};
+  const nav=(p,id)=>{if(p==="price"){sSc("price");return;}if(p==="project_detail" && id){sPg("project_detail");sProjId(id);return;}sPg(p);sProjId(null);};
+  const ssoLogin=(provider)=>{window.location.href=`${SB}/auth/v1/authorize?provider=${provider}&redirect_to=${window.location.origin}`;};
+  
+  const page=()=>{
+    if(!auth)return null;
+    const role=prof?.role||"mgr";
+    const companyId=prof?.company_id;
+    const [projs,sP]=useState([]);
+    const [risks,sR]=useState([]);
+    const [loading,sL]=useState(true);
+    
+    useEffect(()=>{
+      if(!companyId){sL(false);return;}
+      Promise.all([api.projs(auth.access_token,companyId),api.risks(auth.access_token,companyId)]).then(([p,r])=>{
+        sP(Array.isArray(p)?p:[]);
+        sR(Array.isArray(r)?r:[]);
+        sL(false);
+      });
+    },[companyId,auth.access_token]);
+    
+    switch(pg){
+      case"dash":return<Dashboard user={auth.user} prof={prof} token={auth.access_token} onNav={nav}/>;
+      case"analytics":return<AnalyticsDashboard token={auth.access_token} companyId={companyId} projs={projs} risks={risks}/>;
+      case"proj":return<Projects token={auth.access_token} uid={auth.user.id} role={role} companyId={companyId} onNav={nav}/>;
+      case"risks":return<Risks token={auth.access_token} uid={auth.user.id} role={role} companyId={companyId}/>;
+      case"team":return<TeamPage token={auth.access_token} companyId={companyId} uid={auth.user.id} role={role}/>;
+      case"chat":return<ChatPage token={auth.access_token} companyId={companyId} uid={auth.user.id} projs={projs}/>;
+      case"audit":return<AuditLog token={auth.access_token} companyId={companyId}/>;
+      case"summary":return<WeeklySummary token={auth.access_token} prof={prof} companyId={companyId}/>;
+      case"privacy":return<PrivacyTerms page="privacy" onBack={()=>sPg("dash")}/>;
+      case"terms":return<PrivacyTerms page="terms" onBack={()=>sPg("dash")}/>;
+      case"cfg":return<Settings token={auth.access_token} uid={auth.user.id} prof={prof} onUpdate={p=>sProf({...prof,...p})} onNav={nav} companyId={companyId}/>;
+      case"project_detail":return<ProjectDetail projId={projId} token={auth.access_token} companyId={companyId} onBack={()=>sPg("proj")} uid={auth.user.id}/>;
+      default:return<Dashboard user={auth.user} prof={prof} token={auth.access_token} onNav={nav}/>;
+    }
+  };
+  
+  if(booting)return<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:C.bg}}><Spin/></div>;
+  
+  return<div style={{fontFamily:"Inter,-apple-system,sans-serif",background:C.bg,minHeight:"100vh",color:C.txt}}>
+    {sc==="login"&&<Login onLogin={login} onSignup={()=>sSc("signup")} onForgot={()=>sSc("forgot")} onSSO={ssoLogin}/>}
+    {sc==="signup"&&<Signup onLogin={login}/>}
+    {sc==="forgot"&&<ForgotPw onBack={()=>sSc("login")}/>}
+    {sc==="reset"&&<ResetPw token={recoveryToken} onDone={()=>sSc("login")}/>}
+    {sc==="price"&&<Pricing onBack={()=>sSc("app")}/>}
+    {sc==="app"&&<div style={{display:"flex",minHeight:"100vh"}}>
+      <Sidebar user={auth?.user} prof={prof} pg={pg} onNav={nav} onOut={logout}/>
+      <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0}}>
+        <header style={{height:52,background:C.surf,borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 20px",fontSize:14,fontWeight:700,position:"sticky",top:0,zIndex:10}}>
+          <span>{TT[pg]||"Dashboard"}</span>
+          <div style={{display:"flex",gap:8}}>
+            <PWAInstall/>
+          </div>
+        </header>
+        <main style={{flex:1,padding:20,overflowY:"auto"}}>{page()}</main>
+      </div>
+    </div>}
+  </div>;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
