@@ -8,7 +8,13 @@
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <style>
-body{background:#09090B;color:#FAFAFA;font-family:sans-serif;padding:20px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#09090B;color:#FAFAFA;font-family:sans-serif}
+input,button{font-family:inherit}
+input::placeholder{color:#52525B}
+input:focus{outline:none}
+button{cursor:pointer}
+@keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
@@ -17,48 +23,122 @@ body{background:#09090B;color:#FAFAFA;font-family:sans-serif;padding:20px}
 const {useState,useEffect,useRef} = React;
 
 const C = {
-  bg: "#09090B", surf: "#111113", card: "#18181B",
-  border: "#27272A", indigo: "#6366F1", indigoL: "#818CF8",
-  cyan: "#22D3EE", green: "#10B981", red: "#F43F5E", amber: "#F59E0B",
-  txt: "#FAFAFA", txt2: "#A1A1AA", txt3: "#52525B",
-  grad: "linear-gradient(135deg, #6366F1, #22D3EE)"
+  bg:"#09090B",surf:"#111113",card:"#18181B",border:"#27272A",
+  indigo:"#6366F1",indigoL:"#818CF8",cyan:"#22D3EE",green:"#10B981",
+  red:"#F43F5E",amber:"#F59E0B",txt:"#FAFAFA",txt2:"#A1A1AA",txt3:"#52525B",
+  grad:"linear-gradient(135deg,#6366F1,#22D3EE)"
 };
 
 function Spin() {
-  return React.createElement("div", {
-    style: { width: 18, height: 18, border: "2px solid " + C.border, borderTopColor: C.indigo, borderRadius: "50%", animation: "spin .7s linear infinite", display: "inline-block" }
-  });
+  return React.createElement("div",{style:{width:18,height:18,border:"2px solid "+C.border,borderTopColor:C.indigo,borderRadius:"50%",animation:"spin .7s linear infinite",display:"inline-block"}});
 }
 
 function Logo(props) {
-  var s = props.s || 36;
-  return React.createElement("svg", { width: s, height: s, viewBox: "0 0 40 40" },
-    React.createElement("defs", null,
-      React.createElement("linearGradient", { id: "lg", x1: "0%", y1: "0%", x2: "100%", y2: "100%" },
-        React.createElement("stop", { offset: "0%", stopColor: "#6366F1" }),
-        React.createElement("stop", { offset: "100%", stopColor: "#22D3EE" })
+  var s=props.s||36;
+  return React.createElement("svg",{width:s,height:s,viewBox:"0 0 40 40"},
+    React.createElement("defs",null,
+      React.createElement("linearGradient",{id:"lg",x1:"0%",y1:"0%",x2:"100%",y2:"100%"},
+        React.createElement("stop",{offset:"0%",stopColor:"#6366F1"}),
+        React.createElement("stop",{offset:"100%",stopColor:"#22D3EE"})
       )
     ),
-    React.createElement("polygon", { points: "20,2 36,11 36,29 20,38 4,29 4,11", fill: "url(#lg)", opacity: ".12" }),
-    React.createElement("polygon", { points: "20,2 36,11 36,29 20,38 4,29 4,11", fill: "none", stroke: "url(#lg)", strokeWidth: "1.5" }),
-    React.createElement("path", { d: "M20 11s6-2.5 6 6v3s-2.5 7-6 7-6-7-6-7v-3s0-8.5 6-6z", fill: "url(#lg)", opacity: ".9" })
+    React.createElement("polygon",{points:"20,2 36,11 36,29 20,38 4,29 4,11",fill:"url(#lg)",opacity:".12"}),
+    React.createElement("polygon",{points:"20,2 36,11 36,29 20,38 4,29 4,11",fill:"none",stroke:"url(#lg)",strokeWidth:"1.5"}),
+    React.createElement("path",{d:"M20 11s6-2.5 6 6v3s-2.5 7-6 7-6-7-6-7v-3s0-8.5 6-6z",fill:"url(#lg)",opacity:".9"})
+  );
+}
+
+function Card(props) {
+  return React.createElement("div",{style:Object.assign({background:C.card,border:"1px solid "+C.border,borderRadius:14,padding:20},props.sx||{})},props.children);
+}
+
+function Btn(props) {
+  return React.createElement("button",{onClick:props.onClick,disabled:props.dis,style:{background:C.indigo,color:"#fff",border:"none",borderRadius:9,padding:"10px 20px",fontSize:13,fontWeight:600,width:props.full?"100%":"auto",opacity:props.dis?0.5:1}},props.children);
+}
+
+function Inp(props) {
+  return React.createElement("div",null,
+    props.lbl&&React.createElement("div",{style:{fontSize:12,fontWeight:600,color:C.txt2,marginBottom:6}},props.lbl),
+    React.createElement("input",{type:props.type||"text",value:props.val,onChange:props.onChange,placeholder:props.ph,style:{width:"100%",background:C.surf,color:C.txt,border:"1px solid "+C.border,borderRadius:9,padding:"10px 14px",fontSize:13}})
+  );
+}
+
+function Login(props) {
+  const[em,sE]=useState("");
+  const[pw,sP]=useState("");
+  const[err,sErr]=useState("");
+  
+  const handleLogin = function() {
+    if(!em||!pw){sErr("Email and password required");return;}
+    alert("Login: "+em);
+  };
+  
+  return React.createElement("div",{style:{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:C.bg,padding:20}},
+    React.createElement("div",{style:{width:"100%",maxWidth:400}},
+      React.createElement("div",{style:{textAlign:"center",marginBottom:24}},
+        React.createElement(Logo,{s:48}),
+        React.createElement("h2",{style:{fontSize:24,fontWeight:800,marginTop:10,marginBottom:4}},"Welcome Back"),
+        React.createElement("p",{style:{color:C.txt2,fontSize:13}},"Sign in to Aegis AI")
+      ),
+      React.createElement(Card,null,
+        React.createElement("div",{style:{display:"flex",flexDirection:"column",gap:12}},
+          React.createElement(Inp,{lbl:"Email",ph:"you@company.com",val:em,onChange:function(e){sE(e.target.value)}}),
+          React.createElement(Inp,{lbl:"Password",ph:"••••••••",val:pw,onChange:function(e){sP(e.target.value)},type:"password"}),
+          err&&React.createElement("div",{style:{fontSize:12,color:C.red,background:C.red+"12",padding:"8px 12px",borderRadius:7}},err),
+          React.createElement(Btn,{full:true,onClick:handleLogin},"Sign In")
+        ),
+        React.createElement("p",{style:{textAlign:"center",marginTop:16,fontSize:13,color:C.txt2}},"No account? ",React.createElement("span",{onClick:props.onSignup,style:{color:C.indigoL,cursor:"pointer",fontWeight:600}},"Create one"))
+      )
+    )
+  );
+}
+
+function Signup(props) {
+  const[form,sF]=useState({name:"",email:"",pw:"",co:""});
+  const[err,sErr]=useState("");
+  
+  const f = function(k) {
+    return function(e) { sF(Object.assign({},form,{[k]:e.target.value})); };
+  };
+  
+  const goSignup = function() {
+    if(!form.name||!form.email||!form.pw||!form.co){sErr("All fields required");return;}
+    alert("Signup: "+form.name+" - "+form.co);
+  };
+  
+  return React.createElement("div",{style:{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:C.bg,padding:20}},
+    React.createElement("div",{style:{width:"100%",maxWidth:400}},
+      React.createElement("div",{style:{textAlign:"center",marginBottom:20}},
+        React.createElement(Logo,{s:40}),
+        React.createElement("h2",{style:{fontSize:20,fontWeight:800,marginTop:10,marginBottom:4}},"Create Account"),
+        React.createElement("p",{style:{color:C.txt2,fontSize:13}},"Free - no credit card needed")
+      ),
+      React.createElement(Card,null,
+        React.createElement("div",{style:{display:"flex",flexDirection:"column",gap:12}},
+          React.createElement(Inp,{lbl:"Full Name",ph:"Raj Patel",val:form.name,onChange:f("name")}),
+          React.createElement(Inp,{lbl:"Work Email",ph:"raj@company.com",val:form.email,onChange:f("email")}),
+          React.createElement(Inp,{lbl:"Password",ph:"Min 6 characters",val:form.pw,onChange:f("pw"),type:"password"}),
+          React.createElement(Inp,{lbl:"Company Name",ph:"Acme Corp",val:form.co,onChange:f("co")}),
+          err&&React.createElement("div",{style:{fontSize:12,color:C.red,background:C.red+"12",padding:"8px 12px",borderRadius:7}},err),
+          React.createElement(Btn,{full:true,onClick:goSignup},"Create Account")
+        ),
+        React.createElement("p",{style:{textAlign:"center",marginTop:16,fontSize:13,color:C.txt2}},"Have account? ",React.createElement("span",{onClick:props.onLogin,style:{color:C.indigoL,cursor:"pointer",fontWeight:600}},"Sign in"))
+      )
+    )
   );
 }
 
 function App() {
-  return React.createElement("div", null,
-    React.createElement(Logo, { s: 48 }),
-    React.createElement("h1", { style: { marginTop: 10 } }, "Part 2 PASS!"),
-    React.createElement("p", { style: { color: C.green } }, "Logo + Spin components working!"),
-    React.createElement(Spin)
-  );
+  const[page,sPage]=useState("login");
+  
+  if(page==="login") {
+    return React.createElement(Login,{onSignup:function(){sPage("signup")}});
+  }
+  return React.createElement(Signup,{onLogin:function(){sPage("login")}});
 }
 
-const el = document.getElementById("root");
-if (el) {
-  const r = ReactDOM.createRoot(el);
-  r.render(React.createElement(App));
-}
+const el=document.getElementById("root");
+if(el){const r=ReactDOM.createRoot(el);r.render(React.createElement(App))}
 </script>
-</head>
-<body>
+</body>
+</html>
