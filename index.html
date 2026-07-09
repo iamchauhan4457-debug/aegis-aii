@@ -69,7 +69,7 @@ function Sel(p){return React.createElement("div",null,p.lbl&&React.createElement
 function Modal(p){return React.createElement("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",zIndex:100,overflowY:"auto",padding:"20px 16px"}},React.createElement("div",{style:{background:C.card,border:"1px solid "+C.border,borderRadius:16,width:"100%",maxWidth:460,padding:24,margin:"0 auto"}},React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}},React.createElement("div",{style:{fontSize:15,fontWeight:700}},p.title),React.createElement("div",{onClick:p.onClose,style:{cursor:"pointer",color:C.txt2,fontSize:22}},"\u2715")),p.children))}
 function Toast(p){return React.createElement("div",{style:{position:"fixed",bottom:24,right:24,zIndex:200,background:p.type==="success"?C.green:C.red,color:"#fff",borderRadius:10,padding:"10px 18px",fontSize:13,fontWeight:600}},(p.type==="success"?"\u2705 ":"\u274C ")+p.msg)}
 
-// ===== APP =====
+ // ===== APP =====
 function App(){const[sc,sSc]=useState("login");return React.createElement("div",{style:{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:C.bg}},React.createElement("h1",null,"Part 2 Working!"))}
 const el=document.getElementById("root");if(el)ReactDOM.createRoot(el).render(React.createElement(App))
   </script>
