@@ -7,108 +7,84 @@
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{background:#09090B;color:#FAFAFA;font-family:sans-serif}
-input,button,select,textarea{font-family:inherit}
-input::placeholder{color:#52525B}
-input:focus,textarea:focus{outline:none}
-button{cursor:pointer}
-::-webkit-scrollbar{width:4px}
-::-webkit-scrollbar-thumb{background:#27272A;border-radius:4px}
-@keyframes spin{to{transform:rotate(360deg)}}
-@keyframes fu{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-.fu{animation:fu .3s ease both}
-.chart-container{background:#111113;border-radius:12px;padding:16px;border:1px solid #27272A}
-.social-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:10px 16px;border-radius:9px;font-size:13px;font-weight:600;border:1px solid #27272A;background:transparent;color:#FAFAFA;transition:all .2s;cursor:pointer;margin-bottom:8px}
-.social-btn:hover{background:#1a1a2e}
+body{background:#09090B;color:#FAFAFA;font-family:sans-serif;padding:20px}
+.card{background:#18181B;border:1px solid #27272A;border-radius:14px;padding:20px;margin:10px 0}
+.btn{background:#6366F1;color:#fff;border:none;border-radius:9px;padding:10px 20px;font-size:13px;font-weight:600;cursor:pointer;margin:4px}
+input{background:#111113;color:#fff;border:1px solid #27272A;border-radius:9px;padding:10px;width:100%;margin:6px 0}
 </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const {useState,useEffect,useRef}=React;
-const SB="https://eaqktznqqbzjnwszpovw.supabase.co";
-const SK="sb_publishable_JrKWlO_6CGCPeFkRtMLU7w_IS8965uD";
-const H=function(t){return{apikey:SK,Authorization:"Bearer "+(t||SK),"Content-Type":"application/json",Prefer:"return=representation"}};
-const go=async function(url,o){try{const c=new AbortController();const id=setTimeout(function(){c.abort()},15000);const r=await fetch(url,Object.assign({},o||{},{signal:c.signal}));clearTimeout(id);return await r.json()}catch(e){return{error:true,message:e.name==="AbortError"?"Slow internet":e.message}}};
-const genCode=function(){const chars="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";var code="";for(var i=0;i<8;i++)code+=chars.charAt(Math.floor(Math.random()*chars.length));return code};
-const sendEmail=async function(to,subject,body){try{const response=await fetch("https://api.emailjs.com/api/v1.0/email/send",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({service_id:"YOUR_SERVICE_ID",template_id:"YOUR_TEMPLATE_ID",user_id:"YOUR_USER_ID",template_params:{to_email:to,subject:subject,message:body}})});return response.ok}catch(e){return false}};
-var deferredPrompt=null;window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();deferredPrompt=e});const installPWA=function(){if(deferredPrompt){deferredPrompt.prompt();deferredPrompt=null}};
-const generate2FASecret=function(){return"ABCDEFGHIJKLMNOPQRSTUVWXYZ234567".split("").map(function(){return"ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"[Math.floor(Math.random()*32)]}).join("")};
-const verify2FA=function(secret,code){return code==="123456"};
-const ssoLogin=function(provider){window.location.href=SB+"/auth/v1/authorize?provider="+provider+"&redirect_to="+window.location.origin};
-const api={up:function(e,p,n,r){return go(SB+"/auth/v1/signup",{method:"POST",headers:H(),body:JSON.stringify({email:e,password:p,data:{full_name:n,role:r}})})},in:function(e,p){return go(SB+"/auth/v1/token?grant_type=password",{method:"POST",headers:H(),body:JSON.stringify({email:e,password:p})})},out:function(t){return go(SB+"/auth/v1/logout",{method:"POST",headers:H(t)})},prof:function(t,u){return go(SB+"/rest/v1/profiles?id=eq."+u+"&select=*",{headers:H(t)}).then(function(d){return Array.isArray(d)?d[0]:null})},saveProf:function(t,u,d){return go(SB+"/rest/v1/profiles?id=eq."+u,{method:"PATCH",headers:H(t),body:JSON.stringify(d)})},upsertProf:function(t,u,d){return go(SB+"/rest/v1/profiles",{method:"POST",headers:Object.assign({},H(t),{Prefer:"resolution=merge-duplicates,return=representation"}),body:JSON.stringify(Object.assign({id:u},d))})},projs:function(t,cid){return go(SB+"/rest/v1/projects?company_id=eq."+cid+"&order=created_at.desc",{headers:H(t)})},addProj:function(t,u,d){return go(SB+"/rest/v1/projects",{method:"POST",headers:H(t),body:JSON.stringify(Object.assign({},d,{user_id:u}))})},updProj:function(t,i,d){return go(SB+"/rest/v1/projects?id=eq."+i,{method:"PATCH",headers:H(t),body:JSON.stringify(d)})},delProj:function(t,i){return go(SB+"/rest/v1/projects?id=eq."+i,{method:"DELETE",headers:H(t)})},risks:function(t,cid){return go(SB+"/rest/v1/risks?company_id=eq."+cid+"&order=created_at.desc",{headers:H(t)})},addRisk:function(t,u,d){return go(SB+"/rest/v1/risks",{method:"POST",headers:H(t),body:JSON.stringify(Object.assign({},d,{user_id:u}))})},delRisk:function(t,i){return go(SB+"/rest/v1/risks?id=eq."+i,{method:"DELETE",headers:H(t)})},createCompany:function(t,oid,n){var code=genCode();return go(SB+"/rest/v1/companies",{method:"POST",headers:H(t),body:JSON.stringify({name:n,owner_id:oid,invite_code:code})})},findCompanyByCode:function(t,code){return go(SB+"/rest/v1/companies?invite_code=eq."+code+"&select=*",{headers:H(t)}).then(function(d){return Array.isArray(d)&&d[0]?d[0]:null})},getCompany:function(t,id){return go(SB+"/rest/v1/companies?id=eq."+id+"&select=*",{headers:H(t)}).then(function(d){return Array.isArray(d)&&d[0]?d[0]:null})},teamMembers:function(t,cid){return go(SB+"/rest/v1/profiles?company_id=eq."+cid+"&select=*",{headers:H(t)})},addTeamMember:function(t,cid,e,r){return go(SB+"/rest/v1/profiles",{method:"POST",headers:Object.assign({},H(t),{Prefer:"resolution=merge-duplicates,return=representation"}),body:JSON.stringify({email:e,company_id:cid,role:r})})},removeTeamMember:function(t,uid){return go(SB+"/rest/v1/profiles?id=eq."+uid,{method:"PATCH",headers:H(t),body:JSON.stringify({company_id:null})})},getAuditLog:function(t,cid){return go(SB+"/rest/v1/audit_log?company_id=eq."+cid+"&order=created_at.desc",{headers:H(t)}).then(function(d){return Array.isArray(d)?d:[]})},logAudit:function(t,cid,uid,act,det){return go(SB+"/rest/v1/audit_log",{method:"POST",headers:H(t),body:JSON.stringify({company_id:cid,user_id:uid,action:act,details:det})})},getComments:function(t,pid){return go(SB+"/rest/v1/comments?project_id=eq."+pid+"&order=created_at.desc",{headers:H(t)})},addComment:function(t,u,d){return go(SB+"/rest/v1/comments",{method:"POST",headers:H(t),body:JSON.stringify(Object.assign({},d,{user_id:u}))})},delComment:function(t,i){return go(SB+"/rest/v1/comments?id=eq."+i,{method:"DELETE",headers:H(t)})},getActivity:function(t,cid){return go(SB+"/rest/v1/activity?company_id=eq."+cid+"&order=created_at.desc&limit=50",{headers:H(t)})},getChatMessages:function(t,pid){return go(SB+"/rest/v1/chat_messages?project_id=eq."+pid+"&order=created_at.asc",{headers:H(t)})},sendChatMessage:function(t,u,d){return go(SB+"/rest/v1/chat_messages",{method:"POST",headers:H(t),body:JSON.stringify(Object.assign({},d,{user_id:u}))})},linkGitHub:function(t,pid,url){return go(SB+"/rest/v1/projects?id=eq."+pid,{method:"PATCH",headers:H(t),body:JSON.stringify({github_repo:url})})},linkJira:function(t,pid,url){return go(SB+"/rest/v1/projects?id=eq."+pid,{method:"PATCH",headers:H(t),body:JSON.stringify({jira_project:url})})},linkSlack:function(t,pid,url){return go(SB+"/rest/v1/projects?id=eq."+pid,{method:"PATCH",headers:H(t),body:JSON.stringify({slack_webhook:url})})}};
-const session={save:function(d){try{var clean={access_token:d.access_token,refresh_token:d.refresh_token,user:{id:d.user.id,email:d.user.email},expires_at:d.expires_at};localStorage.setItem("aegis_session",JSON.stringify(clean))}catch(e){}},load:function(){try{var v=localStorage.getItem("aegis_session");return v?JSON.parse(v):null}catch(e){return null}},clear:function(){localStorage.removeItem("aegis_session")}};
-const gemKey={get:function(){return localStorage.getItem("aegis_gemini_key")||""},set:function(v){localStorage.setItem("aegis_gemini_key",v||"")}};
-const PLAN_LIMITS={trial:5,starter:15,pro:50,enterprise:999999};
-const usageCap={key:function(uid){return"aegis_ai_usage_"+uid+"_"+new Date().toISOString().slice(0,10)},get:function(uid){return Number(localStorage.getItem(usageCap.key(uid))||0)},inc:function(uid){localStorage.setItem(usageCap.key(uid),String(usageCap.get(uid)+1))},limit:function(plan){return PLAN_LIMITS[plan]||PLAN_LIMITS.trial}};
-const askGemini=async function(key,prompt){var url="https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key="+key;var r=await go(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})});if(r&&r.error&&typeof r.error==="object")return{error:true,message:r.error.message||JSON.stringify(r.error)};if(r&&r.error===true)return{error:true,message:r.message||"Network error"};var text=r&&r.candidates&&r.candidates[0]&&r.candidates[0].content&&r.candidates[0].content.parts&&r.candidates[0].content.parts[0]&&r.candidates[0].content.parts[0].text;if(!text)return{error:true,message:"Gemini response empty"};return{error:false,text:text}};
-const C={bg:"#09090B",surf:"#111113",card:"#18181B",cardH:"#1C1C1F",border:"#27272A",borderL:"#3F3F46",indigo:"#6366F1",indigoL:"#818CF8",cyan:"#22D3EE",green:"#10B981",red:"#F43F5E",amber:"#F59E0B",txt:"#FAFAFA",txt2:"#A1A1AA",txt3:"#52525B",grad:"linear-gradient(135deg,#6366F1,#22D3EE)",gradS:"linear-gradient(135deg,rgba(99,102,241,.12),rgba(34,211,238,.06))"};
+const {useState,useEffect} = React;
 
-// ===== UI COMPONENTS =====
-function Spin(){return React.createElement("div",{style:{width:18,height:18,border:"2px solid "+C.border,borderTopColor:C.indigo,borderRadius:"50%",animation:"spin .7s linear infinite",display:"inline-block"}})}
-function Logo(props){var s=props.s||36;return React.createElement("svg",{width:s,height:s,viewBox:"0 0 40 40"},React.createElement("defs",null,React.createElement("linearGradient",{id:"lg",x1:"0%",y1:"0%",x2:"100%",y2:"100%"},React.createElement("stop",{offset:"0%",stopColor:"#6366F1"}),React.createElement("stop",{offset:"100%",stopColor:"#22D3EE"}))),React.createElement("polygon",{points:"20,2 36,11 36,29 20,38 4,29 4,11",fill:"url(#lg)",opacity:".12"}),React.createElement("polygon",{points:"20,2 36,11 36,29 20,38 4,29 4,11",fill:"none",stroke:"url(#lg)",strokeWidth:"1.5"}),React.createElement("path",{d:"M20 11s6-2.5 6 6v3s-2.5 7-6 7-6-7-6-7v-3s0-8.5 6-6z",fill:"url(#lg)",opacity:".9"}))}
-function Av(props){var n=props.n||"?",s=props.s||32;var t=n.split(" ").map(function(x){return x[0]}).join("").slice(0,2).toUpperCase();return React.createElement("div",{style:{width:s,height:s,borderRadius:"50%",flexShrink:0,background:C.grad,display:"flex",alignItems:"center",justifyContent:"center",fontSize:s*.33,fontWeight:700,color:"#fff"}},t)}
-function Chip(props){var l=props.l,col=props.col||"indigo";var m={indigo:{bg:C.indigo+"18",c:C.indigoL,b:C.indigo+"40"},green:{bg:C.green+"15",c:C.green,b:C.green+"35"},red:{bg:C.red+"15",c:C.red,b:C.red+"35"},amber:{bg:C.amber+"15",c:C.amber,b:C.amber+"35"},gray:{bg:"#fff1",c:C.txt2,b:C.border}};var s=m[col]||m.indigo;return React.createElement("span",{style:{background:s.bg,color:s.c,border:"1px solid "+s.b,borderRadius:5,padding:"2px 8px",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}},l)}
-function Bar(props){var v=props.v||0,col=props.col||C.indigo,h=props.h||5;return React.createElement("div",{style:{background:C.border,borderRadius:99,height:h,overflow:"hidden"}},React.createElement("div",{style:{width:Math.min(v,100)+"%",background:col,height:"100%",borderRadius:99}}))}
-function Card(props){return React.createElement("div",{style:Object.assign({background:C.card,border:"1px solid "+C.border,borderRadius:14,padding:20},props.sx||{})},props.children)}
-function Btn(props){return React.createElement("button",{onClick:props.onClick,disabled:props.dis,style:{background:props.v==="grad"?C.grad:C.indigo,color:"#fff",border:"none",borderRadius:9,padding:props.sz==="lg"?"12px 24px":"9px 18px",fontSize:13,fontWeight:600,width:props.full?"100%":"auto",opacity:props.dis?0.5:1}},props.children)}
-function Inp(props){return React.createElement("div",null,props.lbl&&React.createElement("div",{style:{fontSize:12,fontWeight:600,color:C.txt2,marginBottom:6}},props.lbl),React.createElement("input",{type:props.type||"text",value:props.val,onChange:props.onChange,placeholder:props.ph,style:{width:"100%",background:C.surf,color:C.txt,border:"1px solid "+C.border,borderRadius:9,padding:"10px 14px",fontSize:13}}))}
-function Sel(props){return React.createElement("div",null,props.lbl&&React.createElement("div",{style:{fontSize:12,fontWeight:600,color:C.txt2,marginBottom:6}},props.lbl),React.createElement("select",{value:props.val,onChange:props.onChange,style:{width:"100%",background:C.surf,color:C.txt,border:"1px solid "+C.border,borderRadius:9,padding:"10px 14px",fontSize:13}},props.opts.map(function(o){return React.createElement("option",{key:o.v,value:o.v},o.l)})))}
-function Modal(props){return React.createElement("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",zIndex:100,overflowY:"auto",padding:"20px 16px"}},React.createElement("div",{style:{background:C.card,border:"1px solid "+C.border,borderRadius:16,width:"100%",maxWidth:460,padding:24,margin:"0 auto"}},React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}},React.createElement("div",{style:{fontSize:15,fontWeight:700}},props.title),React.createElement("div",{onClick:props.onClose,style:{cursor:"pointer",color:C.txt2,fontSize:22}},"\u2715")),props.children))}
-function Toast(props){return React.createElement("div",{style:{position:"fixed",bottom:24,right:24,zIndex:200,background:props.type==="success"?C.green:C.red,color:"#fff",borderRadius:10,padding:"10px 18px",fontSize:13,fontWeight:600}},(props.type==="success"?"\u2705 ":"\u274C ")+props.msg)}
-
-// ===== LOGIN =====
-function Login(props){
-  const[em,sE]=useState("");const[pw,sP]=useState("");const[err,sErr]=useState("");const[loading,sL]=useState(false);
-  const handleLogin=async function(){if(!em||!pw){sErr("Email and password required");return}sL(true);sErr("");const d=await api.in(em,pw);sL(false);if(d.access_token){session.save(d);props.onLogin(d)}else sErr(d.message||"Login failed")};
-  return React.createElement("div",{style:{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:C.bg,padding:20}},React.createElement("div",{style:{width:"100%",maxWidth:400}},React.createElement("div",{style:{textAlign:"center",marginBottom:24}},React.createElement(Logo,{s:48}),React.createElement("h2",{style:{fontSize:24,fontWeight:800,marginTop:10,marginBottom:4}},"Welcome Back"),React.createElement("p",{style:{color:C.txt2,fontSize:13}},"Sign in to Aegis AI")),React.createElement(Card,null,React.createElement("div",{style:{display:"flex",flexDirection:"column",gap:12}},React.createElement(Inp,{lbl:"Email",ph:"you@company.com",val:em,onChange:function(e){sE(e.target.value)}}),React.createElement(Inp,{lbl:"Password",ph:"",val:pw,onChange:function(e){sP(e.target.value)},type:"password"}),err&&React.createElement("div",{style:{fontSize:12,color:C.red,background:C.red+"12",padding:"8px 12px",borderRadius:7}},err),React.createElement(Btn,{v:"grad",full:true,sz:"lg",onClick:handleLogin,dis:loading},loading?React.createElement(Spin):"Sign In")),React.createElement("p",{style:{textAlign:"center",marginTop:16,fontSize:13,color:C.txt2}},"No account? ",React.createElement("span",{onClick:props.onSignup,style:{color:C.indigoL,cursor:"pointer",fontWeight:600}},"Create one"))))))
+function Login(props) {
+  const[em,sE]=useState("");
+  const[pw,sP]=useState("");
+  
+  return (
+    <div style={{maxWidth:400,margin:"0 auto"}}>
+      <h2>Login</h2>
+      <input value={em} onChange={e=>sE(e.target.value)} placeholder="Email" />
+      <input value={pw} onChange={e=>sP(e.target.value)} type="password" placeholder="Password" />
+      <button className="btn" onClick={()=>props.onLogin({email:em})}>Sign In</button>
+      <p style={{marginTop:10}}>No account? <span style={{color:"#818CF8",cursor:"pointer"}} onClick={props.onSignup}>Create one</span></p>
+    </div>
+  );
 }
 
-// ===== SIGNUP =====
-function Signup(props){
-  const[form,sF]=useState({name:"",email:"",pw:"",co:"",role:"mgr"});const[err,sErr]=useState("");const[loading,sL]=useState(false);const[status,sSt]=useState("");
-  const f=function(k){return function(e){sF(Object.assign({},form,{[k]:e.target.value}))}};
-  const goSignup=async function(){if(!form.name||!form.email||!form.pw||!form.co){sErr("All fields required");return}if(form.pw.length<6){sErr("Password min 6 characters");return}sL(true);sErr("");sSt("Creating account...");try{const d=await api.up(form.email,form.pw,form.name,form.role);if(d.user||d.access_token){sSt("Logging in...");const d2=await api.in(form.email,form.pw);if(d2.access_token){sSt("Setting up company...");const comp=await api.createCompany(d2.access_token,d2.user.id,form.co);const c=Array.isArray(comp)?comp[0]:comp;if(!c||!c.id){sL(false);sSt("");sErr("Company creation failed");return}await api.upsertProf(d2.access_token,d2.user.id,{full_name:form.name,role:form.role,company_id:c.id,company_name:c.name});const clean={access_token:d2.access_token,user:d2.user,expires_at:d2.expires_at};session.save(clean);sL(false);sSt("");props.onLogin(clean)}else{sL(false);sSt("");sErr("Account created! Please login.")}}else{sL(false);sSt("");const em=d.message||JSON.stringify(d);if(em.includes("already"))sErr("Email already registered");else sErr(em)}}catch(e){sL(false);sSt("");sErr("Network error")}};
-  return React.createElement("div",{style:{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:C.bg,padding:20}},React.createElement("div",{style:{width:"100%",maxWidth:400}},React.createElement("div",{style:{textAlign:"center",marginBottom:20}},React.createElement(Logo,{s:40}),React.createElement("h2",{style:{fontSize:20,fontWeight:800,marginTop:10,marginBottom:4}},"Create Account"),React.createElement("p",{style:{color:C.txt2,fontSize:13}},"Free - no credit card needed")),React.createElement(Card,null,React.createElement("div",{style:{display:"flex",flexDirection:"column",gap:12}},React.createElement(Inp,{lbl:"Full Name",ph:"Raj Patel",val:form.name,onChange:f("name")}),React.createElement(Inp,{lbl:"Work Email",ph:"raj@company.com",val:form.email,onChange:f("email")}),React.createElement(Inp,{lbl:"Password",ph:"Min 6 characters",val:form.pw,onChange:f("pw"),type:"password"}),React.createElement(Inp,{lbl:"Company Name",ph:"Acme Corp",val:form.co,onChange:f("co")}),React.createElement(Sel,{lbl:"Your Role",val:form.role,onChange:f("role"),opts:[{v:"ceo",l:"CEO/Founder"},{v:"mgr",l:"Engineering Manager"},{v:"dev",l:"Developer"}]}),err&&React.createElement("div",{style:{fontSize:12,color:C.red,background:C.red+"12",padding:"8px 12px",borderRadius:7}},err),status&&React.createElement("div",{style:{fontSize:12,color:C.cyan,background:C.cyan+"10",padding:"8px 12px",borderRadius:7,display:"flex",alignItems:"center",gap:8}},React.createElement(Spin)," ",status),React.createElement(Btn,{v:"grad",full:true,sz:"lg",onClick:goSignup,dis:loading},loading?"Creating...":"Create Account")),React.createElement("p",{style:{textAlign:"center",marginTop:16,fontSize:13,color:C.txt2}},"Have account? ",React.createElement("span",{onClick:props.onLogin,style:{color:C.indigoL,cursor:"pointer",fontWeight:600}},"Sign in"))))))
+function Signup(props) {
+  const[form,sF]=useState({name:"",email:"",pw:"",co:""});
+  
+  return (
+    <div style={{maxWidth:400,margin:"0 auto"}}>
+      <h2>Create Account</h2>
+      <input value={form.name} onChange={e=>sF({...form,name:e.target.value})} placeholder="Full Name" />
+      <input value={form.email} onChange={e=>sF({...form,email:e.target.value})} placeholder="Email" />
+      <input value={form.pw} onChange={e=>sF({...form,pw:e.target.value})} type="password" placeholder="Password" />
+      <input value={form.co} onChange={e=>sF({...form,co:e.target.value})} placeholder="Company Name" />
+      <button className="btn" onClick={()=>alert("Signup: "+form.name)}>Create Account</button>
+      <p style={{marginTop:10}}>Have account? <span style={{color:"#818CF8",cursor:"pointer"}} onClick={props.onLogin}>Sign in</span></p>
+    </div>
+  );
 }
 
-// ===== DASHBOARD =====
-function Dashboard(props){
-  const prof=props.prof;const[projs,sP]=useState([]);const[loading,sL]=useState(true);
-  useEffect(function(){if(prof&&prof.company_id){api.projs(props.token,prof.company_id).then(function(d){sP(Array.isArray(d)?d:[]);sL(false)})}else{sL(false)}},[props.token,prof]);
-  if(loading)return React.createElement("div",{style:{display:"flex",justifyContent:"center",padding:60}},React.createElement(Spin));
-  return React.createElement("div",{className:"fu"},React.createElement("div",{style:{marginBottom:20}},React.createElement("h2",{style:{fontSize:20,fontWeight:800}},"Welcome, "+(prof.full_name||"User").split(" ")[0]+"!"),React.createElement("p",{style:{color:C.txt2,fontSize:13}},(prof.company_name||"Your Workspace"))),React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:18}},React.createElement(Card,null,React.createElement("div",{style:{fontSize:28,fontWeight:900,color:C.indigo}},projs.length),React.createElement("div",{style:{fontSize:12,color:C.txt2}},"Total Projects")),React.createElement(Card,null,React.createElement("div",{style:{fontSize:28,fontWeight:900,color:C.green}},projs.filter(function(p){return p.status==="healthy"}).length),React.createElement("div",{style:{fontSize:12,color:C.txt2}},"Healthy")),React.createElement(Card,null,React.createElement("div",{style:{fontSize:28,fontWeight:900,color:C.red}},projs.filter(function(p){return p.status==="at-risk"}).length),React.createElement("div",{style:{fontSize:12,color:C.txt2}},"At Risk"))),React.createElement(Card,{sx:{background:C.gradS,border:"1px solid "+C.indigo+"30",marginBottom:14}},React.createElement("div",{style:{fontSize:14,fontWeight:700,marginBottom:10}},"Quick Actions"),React.createElement("div",{style:{display:"flex",gap:10,flexWrap:"wrap"}},React.createElement(Btn,{v:"grad",onClick:function(){props.onNav("proj")}},"+ Add Project"),React.createElement(Btn,{v:"out",onClick:function(){props.onNav("risks")}},"+ Add Risk"),React.createElement(Btn,{v:"ghost",onClick:function(){props.onNav("team")}},"Team"),React.createElement(Btn,{v:"ghost",onClick:function(){props.onNav("cfg")}},"Settings"))))
+function Dashboard(props) {
+  return (
+    <div style={{maxWidth:600,margin:"0 auto"}}>
+      <h2>Welcome, {props.user.name}!</h2>
+      <p>Company: {props.user.co}</p>
+      <div className="card">
+        <h3>Dashboard</h3>
+        <p>Total Projects: 0</p>
+        <p>Status: Active</p>
+      </div>
+      <button className="btn" onClick={props.onLogout}>Logout</button>
+    </div>
+  );
 }
 
-// ===== SIDEBAR =====
-function Sidebar(props){
-  var user=props.user,prof=props.prof,pg=props.pg,onNav=props.onNav,onOut=props.onOut;
-  var role=(prof&&prof.role)||"mgr";
-  var NAVS={ceo:[{id:"dash",l:"Overview"},{id:"proj",l:"Projects"},{id:"risks",l:"Risks"},{id:"team",l:"Team"},{id:"cfg",l:"Settings"}],mgr:[{id:"dash",l:"Dashboard"},{id:"proj",l:"Projects"},{id:"risks",l:"Risks"},{id:"team",l:"Team"},{id:"cfg",l:"Settings"}],dev:[{id:"dash",l:"My Work"},{id:"proj",l:"Projects"},{id:"team",l:"Team"},{id:"cfg",l:"Settings"}]};
-  var RM={ceo:{l:"CEO",c:C.amber},mgr:{l:"Manager",c:C.cyan},dev:{l:"Developer",c:C.green}};
-  var nav=NAVS[role]||NAVS.mgr,rm=RM[role]||RM.mgr;
-  return React.createElement("aside",{style:{width:210,flexShrink:0,background:C.surf,borderRight:"1px solid "+C.border,display:"flex",flexDirection:"column",height:"100vh",position:"sticky",top:0}},React.createElement("div",{style:{padding:"16px 14px 12px",borderBottom:"1px solid "+C.border}},React.createElement("div",{style:{display:"flex",alignItems:"center",gap:10,marginBottom:12}},React.createElement(Logo,{s:30}),React.createElement("div",{style:{fontSize:13,fontWeight:800}},"Aegis AI"))),React.createElement("nav",{style:{flex:1,padding:"10px 8px",overflowY:"auto"}},nav.map(function(item){var act=pg===item.id;return React.createElement("div",{key:item.id,onClick:function(){onNav(item.id)},style:{padding:"8px 10px",borderRadius:8,cursor:"pointer",marginBottom:2,background:act?C.indigo+"15":"transparent",color:act?C.indigoL:C.txt2,fontWeight:act?600:500,fontSize:13}},item.l)})),React.createElement("div",{style:{padding:"10px 8px",borderTop:"1px solid "+C.border}},React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,padding:"7px 10px"}},React.createElement(Av,{n:prof.full_name||(user&&user.email),s:26}),React.createElement("div",{style:{fontSize:11,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}},prof.full_name||"User")),React.createElement("div",{onClick:onOut,style:{padding:"6px 10px",borderRadius:7,cursor:"pointer",color:C.txt3,fontSize:11}},"Sign out")))
+function App() {
+  const[page,sPage]=useState("login");
+  const[user,sUser]=useState(null);
+  
+  if(page==="dashboard" && user) {
+    return <Dashboard user={user} onLogout={()=>{sUser(null);sPage("login")}} />;
+  }
+  
+  if(page==="signup") {
+    return <Signup onLogin={()=>sPage("login")} />;
+  }
+  
+  return <Login onLogin={(data)=>{sUser(data);sPage("dashboard")}} onSignup={()=>sPage("signup")} />;
 }
 
-// ===== APP =====
-function App(){
-  const[sc,sSc]=useState("login");const[auth,sAuth]=useState(null);const[prof,sProf]=useState(null);const[pg,sPg]=useState("dash");const[booting,sBooting]=useState(true);
-  useEffect(function(){const saved=session.load();if(saved&&saved.access_token&&saved.user){api.prof(saved.access_token,saved.user.id).then(function(p){sAuth(saved);sProf(p||{full_name:saved.user.email.split("@")[0],role:"mgr"});sSc("app");sBooting(false)}).catch(function(){session.clear();sBooting(false)})}else{sBooting(false)}},[]);
-  const login=function(data){sAuth(data);api.prof(data.access_token,data.user.id).then(function(p){sProf(p||{full_name:data.user.email.split("@")[0],role:"mgr"});sSc("app");sPg("dash")})};
-  const logout=function(){session.clear();sAuth(null);sProf(null);sSc("login")};
-  if(booting)return React.createElement("div",{style:{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:C.bg}},React.createElement(Spin));
-  if(sc==="login")return React.createElement(Login,{onLogin:login,onSignup:function(){sSc("signup")}});
-  if(sc==="signup")return React.createElement(Signup,{onLogin:login});
-  return React.createElement("div",{style:{display:"flex",minHeight:"100vh",background:C.bg,color:C.txt,fontFamily:"Inter,sans-serif"}},React.createElement(Sidebar,{user:auth.user,prof:prof,pg:pg,onNav:function(p){sPg(p)},onOut:logout}),React.createElement("div",{style:{flex:1,display:"flex",flexDirection:"column"}},React.createElement("header",{style:{height:52,background:C.surf,borderBottom:"1px solid "+C.border,display:"flex",alignItems:"center",padding:"0 20px",fontSize:14,fontWeight:700}},"Dashboard"),React.createElement("main",{style:{flex:1,padding:20,overflowY:"auto"}},React.createElement(Dashboard,{prof:prof,token:auth.access_token,onNav:function(p){sPg(p)}}))))
+const el = document.getElementById("root");
+if(el) {
+  const r = ReactDOM.createRoot(el);
+  r.render(<App />);
 }
-
-const el=document.getElementById("root");
-if(el){const r=ReactDOM.createRoot(el);r.render(React.createElement(App))}
 </script>
 </body>
 </html>
