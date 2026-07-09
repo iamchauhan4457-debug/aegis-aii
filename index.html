@@ -1,90 +1,50 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Aegis AI</title>
-<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-<style>
-body{background:#09090B;color:#FAFAFA;font-family:sans-serif;padding:20px}
-.card{background:#18181B;border:1px solid #27272A;border-radius:14px;padding:20px;margin:10px 0}
-.btn{background:#6366F1;color:#fff;border:none;border-radius:9px;padding:10px 20px;font-size:13px;font-weight:600;cursor:pointer;margin:4px}
-input{background:#111113;color:#fff;border:1px solid #27272A;border-radius:9px;padding:10px;width:100%;margin:6px 0}
-</style>
-</head>
-<body>
-<div id="root"></div>
-<script type="text/babel">
-const {useState,useEffect} = React;
-
-function Login(props) {
-  const[em,sE]=useState("");
-  const[pw,sP]=useState("");
-  
-  return (
-    <div style={{maxWidth:400,margin:"0 auto"}}>
-      <h2>Login</h2>
-      <input value={em} onChange={e=>sE(e.target.value)} placeholder="Email" />
-      <input value={pw} onChange={e=>sP(e.target.value)} type="password" placeholder="Password" />
-      <button className="btn" onClick={()=>props.onLogin({email:em})}>Sign In</button>
-      <p style={{marginTop:10}}>No account? <span style={{color:"#818CF8",cursor:"pointer"}} onClick={props.onSignup}>Create one</span></p>
-    </div>
-  );
-}
-
-function Signup(props) {
-  const[form,sF]=useState({name:"",email:"",pw:"",co:""});
-  
-  return (
-    <div style={{maxWidth:400,margin:"0 auto"}}>
-      <h2>Create Account</h2>
-      <input value={form.name} onChange={e=>sF({...form,name:e.target.value})} placeholder="Full Name" />
-      <input value={form.email} onChange={e=>sF({...form,email:e.target.value})} placeholder="Email" />
-      <input value={form.pw} onChange={e=>sF({...form,pw:e.target.value})} type="password" placeholder="Password" />
-      <input value={form.co} onChange={e=>sF({...form,co:e.target.value})} placeholder="Company Name" />
-      <button className="btn" onClick={()=>alert("Signup: "+form.name)}>Create Account</button>
-      <p style={{marginTop:10}}>Have account? <span style={{color:"#818CF8",cursor:"pointer"}} onClick={props.onLogin}>Sign in</span></p>
-    </div>
-  );
-}
-
 function Dashboard(props) {
+  const user = props.user;
+  const [projs, sP] = useState([]);
+  const [loading, sL] = useState(true);
+  
+  useEffect(() => {
+    sL(false);
+  }, []);
+  
   return (
-    <div style={{maxWidth:600,margin:"0 auto"}}>
-      <h2>Welcome, {props.user.name}!</h2>
-      <p>Company: {props.user.co}</p>
-      <div className="card">
-        <h3>Dashboard</h3>
-        <p>Total Projects: 0</p>
-        <p>Status: Active</p>
+    <div className="fu" style={{maxWidth:800,margin:"0 auto"}}>
+      <div style={{marginBottom:20}}>
+        <h2 style={{fontSize:20,fontWeight:800}}>Welcome, {(user.name||"User")}!</h2>
+        <p style={{color:"#A1A1AA",fontSize:13}}>{user.co||"Your Workspace"} · {new Date().toDateString()}</p>
       </div>
-      <button className="btn" onClick={props.onLogout}>Logout</button>
+      
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:18}}>
+        <div className="card" style={{textAlign:"center"}}>
+          <div style={{fontSize:28,fontWeight:900,color:"#6366F1"}}>0</div>
+          <div style={{fontSize:12,color:"#A1A1AA"}}>Total Projects</div>
+        </div>
+        <div className="card" style={{textAlign:"center"}}>
+          <div style={{fontSize:28,fontWeight:900,color:"#10B981"}}>0</div>
+          <div style={{fontSize:12,color:"#A1A1AA"}}>Healthy</div>
+        </div>
+        <div className="card" style={{textAlign:"center"}}>
+          <div style={{fontSize:28,fontWeight:900,color:"#F43F5E"}}>0</div>
+          <div style={{fontSize:12,color:"#A1A1AA"}}>At Risk</div>
+        </div>
+      </div>
+      
+      <div className="card" style={{background:"linear-gradient(135deg,rgba(99,102,241,.12),rgba(34,211,238,.06))",border:"1px solid rgba(99,102,241,.3)",marginBottom:14}}>
+        <div style={{fontSize:14,fontWeight:700,marginBottom:10}}>⚡ Quick Actions</div>
+        <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+          <button className="btn">+ Add Project</button>
+          <button className="btn" style={{background:"transparent",border:"1px solid #6366F1",color:"#818CF8"}}>+ Add Risk</button>
+          <button className="btn" style={{background:"transparent",border:"1px solid #27272A",color:"#A1A1AA"}}>👥 Team</button>
+          <button className="btn" style={{background:"transparent",border:"1px solid #27272A",color:"#A1A1AA"}}>⚙ Settings</button>
+        </div>
+      </div>
+      
+      <div className="card">
+        <div style={{fontSize:14,fontWeight:700,marginBottom:12}}>📋 Recent Projects</div>
+        <p style={{color:"#52525B",fontSize:13}}>No projects yet. Click "+ Add Project" to start.</p>
+      </div>
+      
+      <button className="btn" style={{marginTop:20}} onClick={props.onLogout}>Logout</button>
     </div>
   );
 }
-
-function App() {
-  const[page,sPage]=useState("login");
-  const[user,sUser]=useState(null);
-  
-  if(page==="dashboard" && user) {
-    return <Dashboard user={user} onLogout={()=>{sUser(null);sPage("login")}} />;
-  }
-  
-  if(page==="signup") {
-    return <Signup onLogin={()=>sPage("login")} />;
-  }
-  
-  return <Login onLogin={(data)=>{sUser(data);sPage("dashboard")}} onSignup={()=>sPage("signup")} />;
-}
-
-const el = document.getElementById("root");
-if(el) {
-  const r = ReactDOM.createRoot(el);
-  r.render(<App />);
-}
-</script>
-</body>
-</html>
