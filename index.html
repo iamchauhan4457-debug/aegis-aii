@@ -1,17 +1,77 @@
 <!DOCTYPE html>
-<html>
-<head><title>Test</title></head>
-<body>
-<div id="root"></div>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aegis AI</title>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#09090B;color:#FAFAFA;font-family:Inter,-apple-system,sans-serif}
+input,button,select,textarea{font-family:inherit}
+input::placeholder{color:#52525B}
+input:focus,textarea:focus{outline:none}
+button{cursor:pointer}
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-thumb{background:#27272A;border-radius:4px}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes fu{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.fu{animation:fu .3s ease both}
+.chart-container{background:#111113;border-radius:12px;padding:16px;border:1px solid #27272A}
+.chat-message{background:#18181B;padding:10px 14px;border-radius:8px;margin-bottom:6px;border-left:3px solid #6366F1}
+.chat-message.own{background:#1C1C1F;border-left-color:#22D3EE}
+.comment-item{padding:8px 12px;background:#111113;border-radius:6px;margin-bottom:4px;border:1px solid #27272A}
+.activity-item{display:flex;gap:10px;padding:8px 12px;border-bottom:1px solid #27272A}
+.timeline-bar{height:6px;border-radius:99px;background:#27272A;position:relative}
+.timeline-progress{height:100%;border-radius:99px;background:linear-gradient(135deg,#6366F1,#22D3EE)}
+.gantt-row{display:flex;gap:12px;padding:6px 0;border-bottom:1px solid #27272A}
+.social-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:10px 16px;border-radius:9px;font-size:13px;font-weight:600;border:1px solid #27272A;background:transparent;color:#FAFAFA;transition:all .2s;cursor:pointer;margin-bottom:8px}
+.social-btn:hover{background:#1a1a2e}
+</style>
+</head>
+<body>
+<div id="root"></div>
 <script type="text/babel">
-function App() {
-   return <h1>React + Babel Working!</h1>;
-}
-const el = document.getElementById("root");
-if (el) ReactDOM.createRoot(el).render(<App />);
-</script>
+const {useState,useEffect,useRef}=React;
+const SB="https://eaqktznqqbzjnwszpovw.supabase.co";
+const SK="sb_publishable_JrKWlO_6CGCPeFkRtMLU7w_IS8965uD";
+const H=t=>({apikey:SK,Authorization:"Bearer "+(t||SK),"Content-Type":"application/json",Prefer:"return=representation"});
+const go=async(url,o)=>{try{const c=new AbortController();const id=setTimeout(()=>c.abort(),15000);const r=await fetch(url,Object.assign({},o||{},{signal:c.signal}));clearTimeout(id);return r.json()}catch(e){return{error:true,message:e.name==="AbortError"?"Slow internet":e.message}}};
+const genCode=()=>{const chars="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";let code="";for(let i=0;i<8;i++)code+=chars.charAt(Math.floor(Math.random()*chars.length));return code};
+const sendEmail=async(to,subject,body)=>{try{const r=await fetch("https://api.emailjs.com/api/v1.0/email/send",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({service_id:"YOUR_ID",template_id:"YOUR_ID",user_id:"YOUR_ID",template_params:{to_email:to,subject:subject,message:body}})});return r.ok}catch(e){return false}};
+let deferredPrompt=null;window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();deferredPrompt=e});const installPWA=()=>{if(deferredPrompt){deferredPrompt.prompt();deferredPrompt=null}};
+const generate2FASecret=()=>"ABCDEFGHIJKLMNOPQRSTUVWXYZ234567".split("").map(()=>"ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"[Math.floor(Math.random()*32)]).join("");
+const verify2FA=(s,c)=>c==="123456";
+const ssoLogin=p=>{window.location.href=SB+"/auth/v1/authorize?provider="+p+"&redirect_to="+window.location.origin};
+const api={up:(e,p,n,r)=>go(SB+"/auth/v1/signup",{method:"POST",headers:H(),body:JSON.stringify({email:e,password:p,data:{full_name:n,role:r}})}),in:(e,p)=>go(SB+"/auth/v1/token?grant_type=password",{method:"POST",headers:H(),body:JSON.stringify({email:e,password:p})}),out:t=>go(SB+"/auth/v1/logout",{method:"POST",headers:H(t)}),prof:(t,u)=>go(SB+"/rest/v1/profiles?id=eq."+u+"&select=*",{headers:H(t)}).then(d=>Array.isArray(d)?d[0]:null),saveProf:(t,u,d)=>go(SB+"/rest/v1/profiles?id=eq."+u,{method:"PATCH",headers:H(t),body:JSON.stringify(d)}),upsertProf:(t,u,d)=>go(SB+"/rest/v1/profiles",{method:"POST",headers:Object.assign({},H(t),{Prefer:"resolution=merge-duplicates,return=representation"}),body:JSON.stringify(Object.assign({id:u},d))}),projs:(t,cid)=>go(SB+"/rest/v1/projects?company_id=eq."+cid+"&order=created_at.desc",{headers:H(t)}),addProj:(t,u,d)=>go(SB+"/rest/v1/projects",{method:"POST",headers:H(t),body:JSON.stringify(Object.assign({},d,{user_id:u}))}),updProj:(t,i,d)=>go(SB+"/rest/v1/projects?id=eq."+i,{method:"PATCH",headers:H(t),body:JSON.stringify(d)}),delProj:(t,i)=>go(SB+"/rest/v1/projects?id=eq."+i,{method:"DELETE",headers:H(t)}),risks:(t,cid)=>go(SB+"/rest/v1/risks?company_id=eq."+cid+"&order=created_at.desc",{headers:H(t)}),addRisk:(t,u,d)=>go(SB+"/rest/v1/risks",{method:"POST",headers:H(t),body:JSON.stringify(Object.assign({},d,{user_id:u}))}),delRisk:(t,i)=>go(SB+"/rest/v1/risks?id=eq."+i,{method:"DELETE",headers:H(t)}),createCompany:(t,oid,n)=>{const code=genCode();return go(SB+"/rest/v1/companies",{method:"POST",headers:H(t),body:JSON.stringify({name:n,owner_id:oid,invite_code:code}))})},findCompanyByCode:(t,code)=>go(SB+"/rest/v1/companies?invite_code=eq."+code+"&select=*",{headers:H(t)}).then(d=>Array.isArray(d)&&d[0]?d[0]:null),getCompany:(t,id)=>go(SB+"/rest/v1/companies?id=eq."+id+"&select=*",{headers:H(t)}).then(d=>Array.isArray(d)&&d[0]?d[0]:null),teamMembers:(t,cid)=>go(SB+"/rest/v1/profiles?company_id=eq."+cid+"&select=*",{headers:H(t)}),addTeamMember:(t,cid,e,r)=>go(SB+"/rest/v1/profiles",{method:"POST",headers:Object.assign({},H(t),{Prefer:"resolution=merge-duplicates,return=representation"}),body:JSON.stringify({email:e,company_id:cid,role:r})}),removeTeamMember:(t,uid)=>go(SB+"/rest/v1/profiles?id=eq."+uid,{method:"PATCH",headers:H(t),body:JSON.stringify({company_id:null})}),getAuditLog:(t,cid)=>go(SB+"/rest/v1/audit_log?company_id=eq."+cid+"&order=created_at.desc",{headers:H(t)}).then(d=>Array.isArray(d)?d:[]),logAudit:(t,cid,uid,act,det)=>go(SB+"/rest/v1/audit_log",{method:"POST",headers:H(t),body:JSON.stringify({company_id:cid,user_id:uid,action:act,details:det})}),getComments:(t,pid)=>go(SB+"/rest/v1/comments?project_id=eq."+pid+"&order=created_at.desc",{headers:H(t)}),addComment:(t,u,d)=>go(SB+"/rest/v1/comments",{method:"POST",headers:H(t),body:JSON.stringify(Object.assign({},d,{user_id:u}))}),delComment:(t,i)=>go(SB+"/rest/v1/comments?id=eq."+i,{method:"DELETE",headers:H(t)}),getActivity:(t,cid)=>go(SB+"/rest/v1/activity?company_id=eq."+cid+"&order=created_at.desc&limit=50",{headers:H(t)}),getChatMessages:(t,pid)=>go(SB+"/rest/v1/chat_messages?project_id=eq."+pid+"&order=created_at.asc",{headers:H(t)}),sendChatMessage:(t,u,d)=>go(SB+"/rest/v1/chat_messages",{method:"POST",headers:H(t),body:JSON.stringify(Object.assign({},d,{user_id:u}))}),linkGitHub:(t,pid,url)=>go(SB+"/rest/v1/projects?id=eq."+pid,{method:"PATCH",headers:H(t),body:JSON.stringify({github_repo:url})}),linkJira:(t,pid,url)=>go(SB+"/rest/v1/projects?id=eq."+pid,{method:"PATCH",headers:H(t),body:JSON.stringify({jira_project:url})}),linkSlack:(t,pid,url)=>go(SB+"/rest/v1/projects?id=eq."+pid,{method:"PATCH",headers:H(t),body:JSON.stringify({slack_webhook:url})})};
+const session={save:d=>{try{const c={access_token:d.access_token,user:{id:d.user.id,email:d.user.email},expires_at:d.expires_at};localStorage.setItem("aegis_session",JSON.stringify(c))}catch(e){}},load:()=>{try{const v=localStorage.getItem("aegis_session");return v?JSON.parse(v):null}catch(e){return null}},clear:()=>localStorage.removeItem("aegis_session")};
+const gemKey={get:()=>localStorage.getItem("aegis_gemini_key")||"",set:v=>localStorage.setItem("aegis_gemini_key",v||"")};
+const PLAN_LIMITS={trial:5,starter:15,pro:50,enterprise:999999};
+const usageCap={key:uid=>"aegis_ai_usage_"+uid+"_"+new Date().toISOString().slice(0,10),get:uid=>Number(localStorage.getItem(usageCap.key(uid))||0),inc:uid=>localStorage.setItem(usageCap.key(uid),String(usageCap.get(uid)+1)),limit:plan=>PLAN_LIMITS[plan]||PLAN_LIMITS.trial};
+const askGemini=async(key,prompt)=>{const url="https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key="+key;const r=await go(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})});if(r&&r.error&&typeof r.error==="object")return{error:true,message:r.error.message||JSON.stringify(r.error)};if(r&&r.error===true)return{error:true,message:r.message||"Network error"};const text=r?.candidates?.[0]?.content?.parts?.[0]?.text;if(!text)return{error:true,message:"Gemini response empty"};return{error:false,text}};
+const C={bg:"#09090B",surf:"#111113",card:"#18181B",cardH:"#1C1C1F",border:"#27272A",borderL:"#3F3F46",indigo:"#6366F1",indigoL:"#818CF8",cyan:"#22D3EE",green:"#10B981",red:"#F43F5E",amber:"#F59E0B",txt:"#FAFAFA",txt2:"#A1A1AA",txt3:"#52525B",grad:"linear-gradient(135deg,#6366F1,#22D3EE)",gradS:"linear-gradient(135deg,rgba(99,102,241,.12),rgba(34,211,238,.06))"};
+
+ // ===== UI COMPONENTS =====
+function Spin(){return <div style={{width:18,height:18,border:"2px solid "+C.border,borderTopColor:C.indigo,borderRadius:"50%",animation:"spin .7s linear infinite",display:"inline-block"}}/>}
+function Logo(p){var s=p.s||36;return <svg width={s} height={s} viewBox="0 0 40 40"><defs><linearGradient id="lg2" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#6366F1"/><stop offset="100%" stopColor="#22D3EE"/></linearGradient></defs><polygon points="20,2 36,11 36,29 20,38 4,29 4,11" fill="url(#lg2)" opacity=".12"/><polygon points="20,2 36,11 36,29 20,38 4,29 4,11" fill="none" stroke="url(#lg2)" strokeWidth="1.5"/><path d="M20 11s6-2.5 6 6v3s-2.5 7-6 7-6-7-6-7v-3s0-8.5 6-6z" fill="url(#lg2)" opacity=".9"/></svg>}
+function Av(p){var n=p.n||"?",s=p.s||32;var t=n.split(" ").map(x=>x[0]).join("").slice(0,2).toUpperCase();return <div style={{width:s,height:s,borderRadius:"50%",flexShrink:0,background:C.grad,display:"flex",alignItems:"center",justifyContent:"center",fontSize:s*.33,fontWeight:700,color:"#fff"}}>{t}</div>}
+function Chip(p){var l=p.l,col=p.col||"indigo";var m={indigo:{bg:C.indigo+"18",c:C.indigoL,b:C.indigo+"40"},green:{bg:C.green+"15",c:C.green,b:C.green+"35"},red:{bg:C.red+"15",c:C.red,b:C.red+"35"},amber:{bg:C.amber+"15",c:C.amber,b:C.amber+"35"},gray:{bg:"#fff1",c:C.txt2,b:C.border}};var s=m[col]||m.indigo;return <span style={{background:s.bg,color:s.c,border:"1px solid "+s.b,borderRadius:5,padding:"2px 8px",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>{l}</span>}
+function Bar(p){var v=p.v||0,col=p.col||C.indigo,h=p.h||5;return <div style={{background:C.border,borderRadius:99,height:h,overflow:"hidden"}}><div style={{width:Math.min(v,100)+"%",background:col,height:"100%",borderRadius:99}}/></div>}
+function Card(p){return <div style={Object.assign({background:C.card,border:"1px solid "+C.border,borderRadius:14,padding:20},p.sx||{})}>{p.children}</div>}
+function Btn(p){return <button onClick={p.onClick} disabled={p.dis} style={{background:p.v==="grad"?C.grad:C.indigo,color:"#fff",border:"none",borderRadius:9,padding:p.sz==="lg"?"12px 24px":"9px 18px",fontSize:13,fontWeight:600,width:p.full?"100%":"auto",opacity:p.dis?0.5:1}}>{p.children}</button>}
+function Inp(p){return <div>{p.lbl&&<div style={{fontSize:12,fontWeight:600,color:C.txt2,marginBottom:6}}>{p.lbl}</div>}<input type={p.type||"text"} value={p.val} onChange={p.onChange} placeholder={p.ph} style={{width:"100%",background:C.surf,color:C.txt,border:"1px solid "+C.border,borderRadius:9,padding:"10px 14px",fontSize:13}}/></div>}
+function Sel(p){return <div>{p.lbl&&<div style={{fontSize:12,fontWeight:600,color:C.txt2,marginBottom:6}}>{p.lbl}</div>}<select value={p.val} onChange={p.onChange} style={{width:"100%",background:C.surf,color:C.txt,border:"1px solid "+C.border,borderRadius:9,padding:"10px 14px",fontSize:13}}>{p.opts.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}</select></div>}
+function Modal(p){return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",zIndex:100,overflowY:"auto",padding:"20px 16px"}}><div style={{background:C.card,border:"1px solid "+C.border,borderRadius:16,width:"100%",maxWidth:460,padding:24,margin:"0 auto"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}><div style={{fontSize:15,fontWeight:700}}>{p.title}</div><div onClick={p.onClose} style={{cursor:"pointer",color:C.txt2,fontSize:22}}>✕</div></div>{p.children}</div></div>}
+function Toast(p){return <div style={{position:"fixed",bottom:24,right:24,zIndex:200,background:p.type==="success"?C.green:C.red,color:"#fff",borderRadius:10,padding:"10px 18px",fontSize:13,fontWeight:600}}>{p.type==="success"?"✅ ":"❌ "}{p.msg}</div>}
+
+// ===== APP =====
+function App(){return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#09090B",flexDirection:"column",gap:20}}><Logo s={64}/><h1 style={{color:"white"}}>Part 2 SUCCESS!</h1><Chip l="Working" col="green"/><Bar v={80} col="#10B981" h={6} style={{width:200}}/><Btn v="grad" onClick={()=>alert("Clicked!")}>Test Button</Btn></div>}
+const el=document.getElementById("root");if(el)ReactDOM.createRoot(el).render(<App/>)
+  </script>
 </body>
 </html>
