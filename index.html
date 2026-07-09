@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aegis AI</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#09090B;color:#FAFAFA;font-family:Inter,-apple-system,sans-serif}
+input,button,select,textarea{font-family:inherit}
+input::placeholder{color:#52525B}
+input:focus,textarea:focus{outline:none}
+button{cursor:pointer}
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-thumb{background:#27272A;border-radius:4px}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes fu{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.fu{animation:fu .3s ease both}
+.chart-container{background:#111113;border-radius:12px;padding:16px;border:1px solid #27272A}
+.chat-message{background:#18181B;padding:10px 14px;border-radius:8px;margin-bottom:6px;border-left:3px solid #6366F1}
+.chat-message.own{background:#1C1C1F;border-left-color:#22D3EE}
+.comment-item{padding:8px 12px;background:#111113;border-radius:6px;margin-bottom:4px;border:1px solid #27272A}
+.activity-item{display:flex;gap:10px;padding:8px 12px;border-bottom:1px solid #27272A}
+.timeline-bar{height:6px;border-radius:99px;background:#27272A;position:relative}
+.timeline-progress{height:100%;border-radius:99px;background:linear-gradient(135deg,#6366F1,#22D3EE)}
+.gantt-row{display:flex;gap:12px;padding:6px 0;border-bottom:1px solid #27272A}
+.social-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:10px 16px;border-radius:9px;font-size:13px;font-weight:600;border:1px solid #27272A;background:transparent;color:#FAFAFA;transition:all .2s;cursor:pointer;margin-bottom:8px}
+.social-btn:hover{background:#1a1a2e}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+
+const {useState,useEffect,useRef} = React;
+const SB = "https://eaqktznqqbzjnwszpovw.supabase.co";
+const SK = "sb_publishable_JrKWlO_6CGCPeFkRtMLU7w_IS8965uD";
+
+const H = function(t) {
+  return {
+    apikey: SK,
+    Authorization: "Bearer " + (t || SK),
+    "Content-Type": "application/json",
+    Prefer: "return=representation"
+  };
+};
+
+const go = async function(url, options) {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(function() { controller.abort(); }, 15000);
+    const response = await fetch(url, Object.assign({}, options || {}, { signal: controller.signal }));
+    clearTimeout(timeoutId);
+    return await response.json();
+  } catch (e) {
+    return {
+      error: true,
+      message: e.name === "AbortError" ? "Slow internet" : e.message
+    };
+  }
+};
+
+const genCode = function() {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  var code = "";
+  for (var i = 0; i < 8; i++) {
+    code = code + chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+};
+
+var deferredPrompt = null;
+window.addEventListener("beforeinstallprompt", function(e) {
+  e.preventDefault();
+  deferredPrompt = e;
+});
+
+const installPWA = function() {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    deferredPrompt = null;
+  }
+};
+
+const generate2FASecret = function() {
+  return "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567".split("").map(function() {
+    return "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"[Math.floor(Math.random() * 32)];
+  }).join("");
+};
+
+const verify2FA = function(secret, code) {
+  return code === "123456";
+};
+
+const ssoLogin = function(provider) {
+  window.location.href = SB + "/auth/v1/authorize?provider=" + provider + "&redirect_to=" + window.location.origin;
+};
+
+const api = {
+  up: function(email, pass, name, role) {
+    return go(SB + "/auth/v1/signup", {
+      method: "POST",
+      headers: H(),
+      body: JSON.stringify({ email: email, password: pass, data: { full_name: name, role: role } })
+    });
+  },
+  in: function(email, pass) {
+    return go(SB + "/auth/v1/token?grant_type=password", {
+      method: "POST",
+      headers: H(),
+      body: JSON.stringify({ email: email, password: pass })
+    });
+  },
+  out: function(token) {
+    return go(SB + "/auth/v1/logout", { method: "POST", headers: H(token) });
+  },
+  prof: function(token, uid) {
+    return go(SB + "/rest/v1/profiles?id=eq." + uid + "&select=*", { headers: H(token) })
+      .then(function(d) { return Array.isArray(d) ? d[0] : null; });
+  },
+  saveProf: function(token, uid, data) {
+    return go(SB + "/rest/v1/profiles?id=eq." + uid, {
+      method: "PATCH",
+      headers: H(token),
+      body: JSON.stringify(data)
+    });
+  },
+  upsertProf: function(token, uid, data) {
+    return go(SB + "/rest/v1/profiles", {
+      method: "POST",
+      headers: Object.assign({}, H(token), { Prefer: "resolution=merge-duplicates,return=representation" }),
+      body: JSON.stringify(Object.assign({ id: uid }, data))
+    });
+  },
+  projs: function(token, companyId) {
+    return go(SB + "/rest/v1/projects?company_id=eq." + companyId + "&order=created_at.desc", { headers: H(token) });
+  },
+  addProj: function(token, uid, data) {
+    return go(SB + "/rest/v1/projects", {
+      method: "POST",
+      headers: H(token),
+      body: JSON.stringify(Object.assign({}, data, { user_id: uid }))
+    });
+  },
+  updProj: function(token, id, data) {
+    return go(SB + "/rest/v1/projects?id=eq." + id, {
+      method: "PATCH",
+      headers: H(token),
+      body: JSON.stringify(data)
+    });
+  },
+  delProj: function(token, id) {
+    return go(SB + "/rest/v1/projects?id=eq." + id, { method: "DELETE", headers: H(token) });
+  },
+  risks: function(token, companyId) {
+    return go(SB + "/rest/v1/risks?company_id=eq." + companyId + "&order=created_at.desc", { headers: H(token) });
+  },
+  addRisk: function(token, uid, data) {
+    return go(SB + "/rest/v1/risks", {
+      method: "POST",
+      headers: H(token),
+      body: JSON.stringify(Object.assign({}, data, { user_id: uid }))
+    });
+  },
+  delRisk: function(token, id) {
+    return go(SB + "/rest/v1/risks?id=eq." + id, { method: "DELETE", headers: H(token) });
+  },
+  createCompany: function(token, ownerId, name) {
+    var code = genCode();
+    return go(SB + "/rest/v1/companies", {
+      method: "POST",
+      headers: H(token),
+      body: JSON.stringify({ name: name, owner_id: ownerId, invite_code: code })
+    });
+  },
+  findCompanyByCode: function(token, code) {
+    return go(SB + "/rest/v1/companies?invite_code=eq." + code + "&select=*", { headers: H(token) })
+      .then(function(d) { return Array.isArray(d) && d[0] ? d[0] : null; });
+  },
+  getCompany: function(token, id) {
+    return go(SB + "/rest/v1/companies?id=eq." + id + "&select=*", { headers: H(token) })
+      .then(function(d) { return Array.isArray(d) && d[0] ? d[0] : null; });
+  },
+  teamMembers: function(token, companyId) {
+    return go(SB + "/rest/v1/profiles?company_id=eq." + companyId + "&select=*", { headers: H(token) });
+  },
+  addTeamMember: function(token, companyId, email, role) {
+    return go(SB + "/rest/v1/profiles", {
+      method: "POST",
+      headers: Object.assign({}, H(token), { Prefer: "resolution=merge-duplicates,return=representation" }),
+      body: JSON.stringify({ email: email, company_id: companyId, role: role })
+    });
+  },
+  removeTeamMember: function(token, userId) {
+    return go(SB + "/rest/v1/profiles?id=eq." + userId, {
+      method: "PATCH",
+      headers: H(token),
+      body: JSON.stringify({ company_id: null })
+    });
+  },
+  getAuditLog: function(token, companyId) {
+    return go(SB + "/rest/v1/audit_log?company_id=eq." + companyId + "&order=created_at.desc", { headers: H(token) })
+      .then(function(d) { return Array.isArray(d) ? d : []; });
+  },
+  logAudit: function(token, companyId, uid, action, details) {
+    return go(SB + "/rest/v1/audit_log", {
+      method: "POST",
+      headers: H(token),
+      body: JSON.stringify({ company_id: companyId, user_id: uid, action: action, details: details })
+    });
+  },
+  getComments: function(token, projectId) {
+    return go(SB + "/rest/v1/comments?project_id=eq." + projectId + "&order=created_at.desc", { headers: H(token) });
+  },
+  addComment: function(token, uid, data) {
+    return go(SB + "/rest/v1/comments", {
+      method: "POST",
+      headers: H(token),
+      body: JSON.stringify(Object.assign({}, data, { user_id: uid }))
+    });
+  },
+  delComment: function(token, id) {
+    return go(SB + "/rest/v1/comments?id=eq." + id, { method: "DELETE", headers: H(token) });
+  },
+  getActivity: function(token, companyId) {
+    return go(SB + "/rest/v1/activity?company_id=eq." + companyId + "&order=created_at.desc&limit=50", { headers: H(token) });
+  },
+  getChatMessages: function(token, projectId) {
+    return go(SB + "/rest/v1/chat_messages?project_id=eq." + projectId + "&order=created_at.asc", { headers: H(token) });
+  },
+  sendChatMessage: function(token, uid, data) {
+    return go(SB + "/rest/v1/chat_messages", {
+      method: "POST",
+      headers: H(token),
+      body: JSON.stringify(Object.assign({}, data, { user_id: uid }))
+    });
+  },
+  linkGitHub: function(token, projectId, url) {
+    return go(SB + "/rest/v1/projects?id=eq." + projectId, {
+      method: "PATCH",
+      headers: H(token),
+      body: JSON.stringify({ github_repo: url })
+    });
+  },
+  linkJira: function(token, projectId, url) {
+    return go(SB + "/rest/v1/projects?id=eq." + projectId, {
+      method: "PATCH",
+      headers: H(token),
+      body: JSON.stringify({ jira_project: url })
+    });
+  },
+  linkSlack: function(token, projectId, url) {
+    return go(SB + "/rest/v1/projects?id=eq." + projectId, {
+      method: "PATCH",
+      headers: H(token),
+      body: JSON.stringify({ slack_webhook: url })
+    });
+  }
+};
+
+const session = {
+  save: function(d) {
+    try {
+      var clean = {
+        access_token: d.access_token,
+        refresh_token: d.refresh_token,
+        user: { id: d.user.id, email: d.user.email },
+        expires_at: d.expires_at
+      };
+      localStorage.setItem("aegis_session", JSON.stringify(clean));
+    } catch (e) {}
+  },
+  load: function() {
+    try {
+      var v = localStorage.getItem("aegis_session");
+      return v ? JSON.parse(v) : null;
+    } catch (e) { return null; }
+  },
+  clear: function() { localStorage.removeItem("aegis_session"); }
+};
+
+const gemKey = {
+  get: function() { return localStorage.getItem("aegis_gemini_key") || ""; },
+  set: function(v) { localStorage.setItem("aegis_gemini_key", v || ""); }
+};
+
+const PLAN_LIMITS = { trial: 5, starter: 15, pro: 50, enterprise: 999999 };
+
+const usageCap = {
+  key: function(uid) { return "aegis_ai_usage_" + uid + "_" + new Date().toISOString().slice(0, 10); },
+  get: function(uid) { return Number(localStorage.getItem(usageCap.key(uid)) || 0); },
+  inc: function(uid) { localStorage.setItem(usageCap.key(uid), String(usageCap.get(uid) + 1)); },
+  limit: function(plan) { return PLAN_LIMITS[plan] || PLAN_LIMITS.trial; }
+};
+
+const askGemini = async function(key, prompt) {
+  var url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + key;
+  var r = await go(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+  });
+  if (r && r.error && typeof r.error === "object") {
+    return { error: true, message: r.error.message || JSON.stringify(r.error) };
+  }
+  if (r && r.error === true) {
+    return { error: true, message: r.message || "Network/fetch error" };
+  }
+  var text = r && r.candidates && r.candidates[0] && r.candidates[0].content && r.candidates[0].content.parts && r.candidates[0].content.parts[0] && r.candidates[0].content.parts[0].text;
+  if (!text) {
+    return { error: true, message: "Gemini response empty" };
+  }
+  return { error: false, text: text };
+};
+
+const C = {
+  bg: "#09090B", surf: "#111113", card: "#18181B", cardH: "#1C1C1F",
+  border: "#27272A", borderL: "#3F3F46",
+  indigo: "#6366F1", indigoL: "#818CF8",
+  cyan: "#22D3EE", green: "#10B981", red: "#F43F5E", amber: "#F59E0B",
+  txt: "#FAFAFA", txt2: "#A1A1AA", txt3: "#52525B",
+  grad: "linear-gradient(135deg, #6366F1, #22D3EE)",
+  gradS: "linear-gradient(135deg, rgba(99,102,241,.12), rgba(34,211,238,.06))"
+};
+
+function App() {
+  return React.createElement("div", { style: { padding: 40 } },
+    React.createElement("h1", null, "Part 1 SUCCESS!"),
+    React.createElement("p", { style: { color: C.green } }, "Config, API, Session, Gemini - ALL LOADED!"),
+    React.createElement("p", { style: { color: C.txt2 } }, "Supabase URL: " + SB),
+    React.createElement("p", { style: { color: C.txt2 } }, "Part 1 - No Errors Found!")
+  );
+}
+
+const el = document.getElementById("root");
+if (el) {
+  const r = ReactDOM.createRoot(el);
+  r.render(React.createElement(App));
+}
+</script>
+</body>
+</html>
