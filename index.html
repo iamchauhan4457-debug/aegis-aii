@@ -343,6 +343,226 @@ if (el) {
   const r = ReactDOM.createRoot(el);
   r.render(React.createElement(App));
 }
+  // ===== UI COMPONENTS =====
+function Spin() {
+  return React.createElement("div", {
+    style: { width: 18, height: 18, border: "2px solid " + C.border, borderTopColor: C.indigo, borderRadius: "50%", animation: "spin .7s linear infinite", display: "inline-block" }
+  });
+}
+
+function Logo(props) {
+  var s = props.s || 36;
+  return React.createElement("svg", { width: s, height: s, viewBox: "0 0 40 40" },
+    React.createElement("defs", null,
+      React.createElement("linearGradient", { id: "lg", x1: "0%", y1: "0%", x2: "100%", y2: "100%" },
+        React.createElement("stop", { offset: "0%", stopColor: "#6366F1" }),
+        React.createElement("stop", { offset: "100%", stopColor: "#22D3EE" })
+      )
+    ),
+    React.createElement("polygon", { points: "20,2 36,11 36,29 20,38 4,29 4,11", fill: "url(#lg)", opacity: ".12" }),
+    React.createElement("polygon", { points: "20,2 36,11 36,29 20,38 4,29 4,11", fill: "none", stroke: "url(#lg)", strokeWidth: "1.5" }),
+    React.createElement("path", { d: "M20 11s6-2.5 6 6v3s-2.5 7-6 7-6-7-6-7v-3s0-8.5 6-6z", fill: "url(#lg)", opacity: ".9" })
+  );
+}
+
+function Av(props) {
+  var n = props.n || "?";
+  var s = props.s || 32;
+  var t = n.split(" ").map(function(x) { return x[0]; }).join("").slice(0, 2).toUpperCase();
+  return React.createElement("div", {
+    style: { width: s, height: s, borderRadius: "50%", flexShrink: 0, background: C.grad, display: "flex", alignItems: "center", justifyContent: "center", fontSize: s * 0.33, fontWeight: 700, color: "#fff" }
+  }, t);
+}
+
+function Chip(props) {
+  var label = props.l;
+  var color = props.col || "indigo";
+  var colors = {
+    indigo: { bg: C.indigo + "18", c: C.indigoL, b: C.indigo + "40" },
+    green: { bg: C.green + "15", c: C.green, b: C.green + "35" },
+    red: { bg: C.red + "15", c: C.red, b: C.red + "35" },
+    amber: { bg: C.amber + "15", c: C.amber, b: C.amber + "35" },
+    gray: { bg: "#fff1", c: C.txt2, b: C.border }
+  };
+  var s = colors[color] || colors.indigo;
+  return React.createElement("span", {
+    style: { background: s.bg, color: s.c, border: "1px solid " + s.b, borderRadius: 5, padding: "2px 8px", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }
+  }, label);
+}
+
+function Bar(props) {
+  var value = props.v || 0;
+  var color = props.col || C.indigo;
+  var height = props.h || 5;
+  return React.createElement("div", { style: { background: C.border, borderRadius: 99, height: height, overflow: "hidden" } },
+    React.createElement("div", { style: { width: Math.min(value, 100) + "%", background: color, height: "100%", borderRadius: 99 } })
+  );
+}
+
+function Dot(props) {
+  return React.createElement("div", { style: { width: 7, height: 7, borderRadius: "50%", background: props.col, flexShrink: 0 } });
+}
+
+function Hr(props) {
+  var m = props.m || 16;
+  return React.createElement("div", { style: { height: 1, background: C.border, margin: m + "px 0" } });
+}
+
+function Card(props) {
+  var style = props.sx || {};
+  var onClick = props.onClick;
+  return React.createElement("div", {
+    onClick: onClick,
+    style: Object.assign({ background: C.card, border: "1px solid " + C.border, borderRadius: 14, padding: 20, cursor: onClick ? "pointer" : "default" }, style)
+  }, props.children);
+}
+
+function Btn(props) {
+  var hv = useState(false);
+  var hovered = hv[0];
+  var setHovered = hv[1];
+  var variant = props.v || "pri";
+  var size = props.sz || "md";
+  var variants = {
+    pri: { bg: hovered ? "#4F46E5" : C.indigo, c: "#fff", b: "transparent" },
+    grad: { bg: C.grad, c: "#fff", b: "transparent" },
+    ghost: { bg: hovered ? "#fff1" : "transparent", c: C.txt2, b: C.border },
+    out: { bg: hovered ? C.indigo + "12" : "transparent", c: C.indigoL, b: C.indigo },
+    red: { bg: hovered ? "#E11D48" : C.red, c: "#fff", b: "transparent" }
+  };
+  var s = variants[variant] || variants.pri;
+  var pad = { sm: "6px 14px", md: "9px 18px", lg: "12px 24px" };
+  var fs = { sm: 11, md: 13, lg: 14 };
+  return React.createElement("button", {
+    onClick: props.onClick,
+    disabled: props.dis,
+    onMouseEnter: function() { setHovered(true); },
+    onMouseLeave: function() { setHovered(false); },
+    style: {
+      background: s.bg, color: s.c, border: "1px solid " + s.b,
+      borderRadius: 9, padding: pad[size] || pad.md, fontSize: fs[size] || fs.md,
+      fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 6,
+      width: props.full ? "100%" : "auto", justifyContent: "center",
+      opacity: props.dis ? 0.5 : 1
+    }
+  }, props.children);
+}
+
+function Inp(props) {
+  var foc = useState(false);
+  var focused = foc[0];
+  var setFocused = foc[1];
+  var base = {
+    width: "100%", background: C.surf, color: C.txt,
+    border: "1px solid " + (focused ? C.indigo : C.border),
+    borderRadius: 9, padding: "10px 14px", fontSize: 13
+  };
+  return React.createElement("div", null,
+    props.lbl && React.createElement("div", { style: { fontSize: 12, fontWeight: 600, color: C.txt2, marginBottom: 6 } }, props.lbl),
+    props.rows
+      ? React.createElement("textarea", { rows: props.rows, value: props.val, onChange: props.onChange, placeholder: props.ph, onFocus: function() { setFocused(true); }, onBlur: function() { setFocused(false); }, style: Object.assign({}, base, { resize: "vertical" }) })
+      : React.createElement("input", { type: props.type || "text", value: props.val, onChange: props.onChange, placeholder: props.ph, onFocus: function() { setFocused(true); }, onBlur: function() { setFocused(false); }, style: base })
+  );
+}
+
+function Sel(props) {
+  return React.createElement("div", null,
+    props.lbl && React.createElement("div", { style: { fontSize: 12, fontWeight: 600, color: C.txt2, marginBottom: 6 } }, props.lbl),
+    React.createElement("select", { value: props.val, onChange: props.onChange, style: { width: "100%", background: C.surf, color: C.txt, border: "1px solid " + C.border, borderRadius: 9, padding: "10px 14px", fontSize: 13 } },
+      props.opts.map(function(o) { return React.createElement("option", { key: o.v, value: o.v }, o.l); })
+    )
+  );
+}
+
+function Modal(props) {
+  return React.createElement("div", { style: { position: "fixed", inset: 0, background: "rgba(0,0,0,.75)", zIndex: 100, overflowY: "auto", padding: "20px 16px" } },
+    React.createElement("div", { style: { background: C.card, border: "1px solid " + C.border, borderRadius: 16, width: "100%", maxWidth: 460, padding: 24, margin: "0 auto" } },
+      React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 } },
+        React.createElement("div", { style: { fontSize: 15, fontWeight: 700 } }, props.title),
+        React.createElement("div", { onClick: props.onClose, style: { cursor: "pointer", color: C.txt2, fontSize: 22 } }, "\u2715")
+      ),
+      props.children
+    )
+  );
+}
+
+function Toast(props) {
+  return React.createElement("div", { style: { position: "fixed", bottom: 24, right: 24, zIndex: 200, background: props.type === "success" ? C.green : C.red, color: "#fff", borderRadius: 10, padding: "10px 18px", fontSize: 13, fontWeight: 600, boxShadow: "0 4px 20px rgba(0,0,0,.4)" } },
+    (props.type === "success" ? "\u2705 " : "\u274C ") + props.msg
+  );
+}
+
+// ===== SIDEBAR =====
+function Sidebar(props) {
+  var user = props.user;
+  var prof = props.prof;
+  var pg = props.pg;
+  var onNav = props.onNav;
+  var onOut = props.onOut;
+  var role = (prof && prof.role) || "mgr";
+  var NAVS = {
+    ceo: [{id:"dash",l:"Overview"},{id:"analytics",l:"Analytics"},{id:"proj",l:"Projects"},{id:"risks",l:"Risks"},{id:"team",l:"Team"},{id:"chat",l:"Chat"},{id:"audit",l:"Activity"},{id:"cfg",l:"Settings"}],
+    mgr: [{id:"dash",l:"Dashboard"},{id:"analytics",l:"Analytics"},{id:"proj",l:"Projects"},{id:"risks",l:"Risks"},{id:"team",l:"Team"},{id:"chat",l:"Chat"},{id:"audit",l:"Activity"},{id:"cfg",l:"Settings"}],
+    dev: [{id:"dash",l:"My Work"},{id:"proj",l:"Projects"},{id:"risks",l:"Risks"},{id:"team",l:"Team"},{id:"chat",l:"Chat"},{id:"cfg",l:"Settings"}]
+  };
+  var RM = { ceo: {l:"CEO",c:C.amber}, mgr: {l:"Eng. Manager",c:C.cyan}, dev: {l:"Developer",c:C.green} };
+  var nav = NAVS[role] || NAVS.mgr;
+  var rm = RM[role] || RM.mgr;
+  
+  return React.createElement("aside", { style: { width: 210, flexShrink: 0, background: C.surf, borderRight: "1px solid " + C.border, display: "flex", flexDirection: "column", height: "100vh", position: "sticky", top: 0 } },
+    React.createElement("div", { style: { padding: "16px 14px 12px", borderBottom: "1px solid " + C.border } },
+      React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 12 } },
+        React.createElement(Logo, { s: 30 }),
+        React.createElement("div", { style: { fontSize: 13, fontWeight: 800 } }, "Aegis AI")
+      ),
+      React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", background: rm.c + "10", border: "1px solid " + rm.c + "30", borderRadius: 7 } },
+        React.createElement("span", { style: { fontSize: 10, fontWeight: 700, color: rm.c } }, rm.l)
+      )
+    ),
+    React.createElement("nav", { style: { flex: 1, padding: "10px 8px", overflowY: "auto" } },
+      nav.map(function(item) {
+        var active = pg === item.id;
+        return React.createElement("div", { key: item.id, onClick: function() { onNav(item.id); }, style: { padding: "8px 10px", borderRadius: 8, cursor: "pointer", marginBottom: 2, background: active ? C.indigo + "15" : "transparent", color: active ? C.indigoL : C.txt2, fontWeight: active ? 600 : 500, fontSize: 13 } }, item.l);
+      })
+    ),
+    React.createElement("div", { style: { padding: "10px 8px", borderTop: "1px solid " + C.border } },
+      React.createElement("div", { onClick: function() { onNav("price"); }, style: { padding: "9px 12px", borderRadius: 8, cursor: "pointer", background: C.gradS, border: "1px solid " + C.indigo + "30", marginBottom: 8 } },
+        React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: C.indigoL, marginBottom: 3 } }, "Trial"),
+        React.createElement(Bar, { v: 20, col: C.indigo, h: 3 }),
+        React.createElement("div", { style: { fontSize: 9, color: C.txt3, marginTop: 3 } }, "Upgrade")
+      ),
+      React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, padding: "7px 10px" } },
+        React.createElement(Av, { n: (prof && prof.full_name) || (user && user.email), s: 26 }),
+        React.createElement("div", { style: { fontSize: 11, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 } }, (prof && prof.full_name) || "User")
+      ),
+      React.createElement("div", { onClick: onOut, style: { padding: "6px 10px", borderRadius: 7, cursor: "pointer", color: C.txt3, fontSize: 11 } }, "Sign out")
+    )
+  );
+}
+
+function App() {
+  var dummyUser = { email: "test@test.com" };
+  var dummyProf = { full_name: "Test User", role: "mgr" };
+  
+  return React.createElement("div", { style: { display: "flex", minHeight: "100vh" } },
+    React.createElement(Sidebar, { user: dummyUser, prof: dummyProf, pg: "dash", onNav: function(p) { alert("Nav: " + p); }, onOut: function() { alert("Logout"); } }),
+    React.createElement("div", { style: { flex: 1, padding: 20 } },
+      React.createElement("h1", null, "Part 2 SUCCESS!"),
+      React.createElement("p", { style: { color: C.green } }, "All UI Components + Sidebar loaded!"),
+      React.createElement(Btn, { v: "grad", onClick: function() { alert("Clicked!"); } }, "Test Button"),
+      React.createElement("br", null),
+      React.createElement(Chip, { l: "Working", col: "green" }),
+      React.createElement("br", null),
+      React.createElement(Bar, { v: 75, col: C.green, h: 6 })
+    )
+  );
+}
+
+const el = document.getElementById("root");
+if (el) {
+  const r = ReactDOM.createRoot(el);
+  r.render(React.createElement(App));
+}
 </script>
 </body>
 </html>
